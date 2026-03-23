@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthChange } from '../firebase/authService';
-import { getBarberData, getUserProfile } from '../firebase/firestoreService';
+import { getBarberData, getUserProfile, createInitialBarberData } from '../firebase/firestoreService';
 
 const AuthContext = createContext();
 
@@ -47,6 +47,10 @@ export const AuthProvider = ({ children }) => {
         setUserRole(role);
         setLinkedBarberId(barberId);
         setBusinessId(bId);
+
+        if (role === 'admin') {
+          await createInitialBarberData(firebaseUser.uid, firebaseUser.email);
+        }
 
         // Si es barbero, cargar datos del negocio del dueño; si es admin, los suyos
         const targetUid = role === 'barber' && bId ? bId : firebaseUser.uid;
