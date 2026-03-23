@@ -29,41 +29,46 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthChange(async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
+      try {
+        if (firebaseUser) {
+          setUser(firebaseUser);
 
-        // Verificar perfil de usuario para determinar rol
-        const profileResult = await getUserProfile(firebaseUser.uid);
-        let role = 'admin';
-        let barberId = null;
-        let bId = null;
+          // Verificar perfil de usuario para determinar rol
+          const profileResult = await getUserProfile(firebaseUser.uid);
+          let role = 'admin';
+          let barberId = null;
+          let bId = null;
 
-        if (profileResult.success && profileResult.data) {
-          role = profileResult.data.role || 'admin';
-          barberId = profileResult.data.barberId || null;
-          bId = profileResult.data.businessId || null;
+          if (profileResult.success && profileResult.data) {
+            role = profileResult.data.role || 'admin';
+            barberId = profileResult.data.barberId || null;
+            bId = profileResult.data.businessId || null;
+          }
+
+          setUserRole(role);
+          setLinkedBarberId(barberId);
+          setBusinessId(bId);
+
+          if (role === 'admin') {
+            await createInitialBarberData(firebaseUser.uid, firebaseUser.email);
+          }
+
+          // Si es barbero, cargar datos del negocio del dueño; si es admin, los suyos
+          const targetUid = role === 'barber' && bId ? bId : firebaseUser.uid;
+          const result = await getBarberData(targetUid);
+          if (result.success) setBarberData(result.data);
+        } else {
+          setUser(null);
+          setBarberData(null);
+          setUserRole('admin');
+          setLinkedBarberId(null);
+          setBusinessId(null);
         }
-
-        setUserRole(role);
-        setLinkedBarberId(barberId);
-        setBusinessId(bId);
-
-        if (role === 'admin') {
-          await createInitialBarberData(firebaseUser.uid, firebaseUser.email);
-        }
-
-        // Si es barbero, cargar datos del negocio del dueño; si es admin, los suyos
-        const targetUid = role === 'barber' && bId ? bId : firebaseUser.uid;
-        const result = await getBarberData(targetUid);
-        if (result.success) setBarberData(result.data);
-      } else {
-        setUser(null);
-        setBarberData(null);
-        setUserRole('admin');
-        setLinkedBarberId(null);
-        setBusinessId(null);
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();

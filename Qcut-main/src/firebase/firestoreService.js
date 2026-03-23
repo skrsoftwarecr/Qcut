@@ -52,18 +52,22 @@ export const getBarberData = async (uid) => {
 };
 
 export const createInitialBarberData = async (uid, email) => {
-  const docRef = doc(db, 'barbers', uid, 'config', 'barberdata');
-  const docSnap = await getDoc(docRef);
-  if (!docSnap.exists()) {
-    await setDoc(docRef, {
-      uid,
-      email,
-      nombre: '',
-      telefono: '',
-      direccion: '',
-      configurado: false,
-      createdAt: new Date()
-    });
+  try {
+    const docRef = doc(db, 'barbers', uid, 'config', 'barberdata');
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) {
+      await setDoc(docRef, {
+        uid,
+        email,
+        nombre: '',
+        telefono: '',
+        direccion: '',
+        configurado: false,
+        createdAt: new Date()
+      });
+    }
+  } catch (error) {
+    console.error('Error creating initial barber data:', error);
   }
 };
 
