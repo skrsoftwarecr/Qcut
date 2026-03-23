@@ -184,7 +184,7 @@ const BookingPage = () => {
     // CAMBIO 3: Verificar si el slot está bloqueado
       const DAY_MAP = { 0:'domingo',1:'lunes',2:'martes',3:'miercoles',4:'jueves',5:'viernes',6:'sabado' };
       const dayName = DAY_MAP[selectedDate.getDay()];
-      const isBlocked = blockedSchedules.some(block => {
+      const isBlocked = allBlocks.some(block => {
         if (block.dia !== dayName) return false;
         if (block.barberoId !== 'todos' && block.barberoId !== selectedBarberId) return false;
         return timeString >= block.horaInicio && timeString < block.horaFin;
