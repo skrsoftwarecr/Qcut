@@ -1,5 +1,6 @@
 import { 
   collection, 
+  collectionGroup,
   doc, 
   getDoc, 
   getDocs, 
@@ -9,13 +10,12 @@ import {
   query,
   where,
   orderBy,
+  onSnapshot,
+  limit,
   Timestamp,
   addDoc
 } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { db, app } from './config';
-
-const functions = getFunctions(app);
+import { db } from './config';
 
 /** Obtiene el perfil de usuario (rol, barberId, businessId) */
 export const getUserProfile = async (uid) => {
@@ -52,39 +52,95 @@ export const getBarberData = async (uid) => {
 };
 
 export const createInitialBarberData = async (uid, email) => {
+  const buildPayload = () => {
+    const adminBarberId = `barber-${uid.slice(0, 8)}`;
+    return {
+      uid,
+      email,
+      name: '',
+      phone: '',
+      address: '',
+      openingTime: '09:00',
+      closingTime: '18:00',
+      appointmentDuration: 30,
+      workingDays: [1, 2, 3, 4, 5, 6],
+      barbers: [
+        {
+          id: adminBarberId,
+          uid,
+          name: (email || '').split('@')[0] || 'Administrador',
+          email: email || '',
+          active: true,
+          autoAccept: false
+        }
+      ],
+      configurado: false,
+      createdAt: Timestamp.now()
+    };
+  };
+
   try {
     const docRef = doc(db, 'barbers', uid, 'config', 'barberdata');
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) {
-      await setDoc(docRef, {
-        uid,
-        email,
-        nombre: '',
-        telefono: '',
-        direccion: '',
-        configurado: false,
-        createdAt: new Date()
-      });
+      await setDoc(docRef, buildPayload());
     }
   } catch (error) {
     console.error('Error creating initial barber data:', error);
+    try {
+      await setUserProfile(uid, {
+        role: 'admin',
+        businessId: uid,
+        email: email || '',
+        mustChangePassword: false,
+        recoveredAt: new Date()
+      });
+
+      const retryRef = doc(db, 'barbers', uid, 'config', 'barberdata');
+      const retrySnap = await getDoc(retryRef);
+      if (!retrySnap.exists()) {
+        await setDoc(retryRef, buildPayload());
+      }
+    } catch (retryError) {
+      console.error('Error retrying initial barber data creation:', retryError);
+    }
   }
 };
 
-/** Registrar cuenta autenticada para un barbero (Solución Temporal sin Cloud Functions) */
-export const registerBarberInAuth = async (barberData) => {
+/** Busca si un email pertenece a un barbero de alguna barbería */
+export const findBarberAssignmentByEmail = async (email) => {
   try {
-    const { barberId, name, email, password } = barberData;
-    await setDoc(doc(db, 'barbers', barberId), {
-      name,
-      email,
-      password, // Almacenar temporalmente (solo por la instruccion de evitar auth)
-      role: 'barber',
-      createdAt: new Date()
-    });
-    return { success: true, data: { uid: barberId } };
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (!normalizedEmail) return { success: true, data: null };
+
+    // collectionGroup retorna todos los docs en subcollections 'config';
+    // filtramos por ID 'barberdata' en el loop ya que where(documentId()) no
+    // funciona correctamente en collection group queries (compara ruta completa).
+    const configsSnap = await getDocs(collectionGroup(db, 'config'));
+
+    for (const configDoc of configsSnap.docs) {
+      if (configDoc.id !== 'barberdata') continue;
+
+      const businessId = configDoc.ref.parent?.parent?.id;
+      if (!businessId) continue;
+
+      const barbers = configDoc.data().barbers || [];
+      const matched = barbers.find((barber) => (barber.email || '').trim().toLowerCase() === normalizedEmail);
+
+      if (matched) {
+        return {
+          success: true,
+          data: {
+            businessId,
+            barberId: matched.id,
+            mustChangePassword: !!matched.temporaryPasswordActive,
+          }
+        };
+      }
+    }
+
+    return { success: true, data: null };
   } catch (error) {
-    console.error('Error al crear documento temporal de barbero:', error);
     return { success: false, error: error.message };
   }
 };
@@ -127,6 +183,41 @@ export const getAppointments = async (uid, startDate, endDate, barberId = null) 
     console.error('Error al obtener citas:', error);
     return { success: false, error: error.message };
   }
+};
+
+/** Suscripción en tiempo real de citas para el dashboard */
+export const subscribeToAppointmentsRealtime = (uid, startDate, endDate, barberId, onData, onError) => {
+  const appointmentsRef = collection(db, 'barbers', uid, 'appointments');
+  const constraints = [
+    where('date', '>=', Timestamp.fromDate(startDate)),
+    orderBy('date', 'asc')
+  ];
+
+  if (endDate) {
+    constraints.splice(1, 0, where('date', '<=', Timestamp.fromDate(endDate)));
+  }
+
+  const q = query(appointmentsRef, ...constraints);
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      let appointments = [];
+      snapshot.forEach((d) => {
+        const data = d.data();
+        appointments.push({ id: d.id, ...data, date: data.date?.toDate ? data.date.toDate() : data.date });
+      });
+
+      if (barberId) {
+        appointments = appointments.filter((apt) => apt.barberId === barberId);
+      }
+
+      onData(appointments);
+    },
+    (error) => {
+      if (onError) onError(error);
+    }
+  );
 };
 
 /** Crea una nueva cita */
@@ -269,38 +360,145 @@ export const getScheduleConfig = async (uid) => {
   }
 };
 
+/** Obtiene configuración de horario específica de un barbero */
+export const getBarberScheduleConfig = async (businessId, barberId) => {
+  try {
+    const configRef = doc(db, 'barbers', businessId, 'barberConfigs', barberId);
+    const configSnap = await getDoc(configRef);
+
+    if (configSnap.exists()) {
+      return { success: true, data: configSnap.data() };
+    }
+
+    return { success: false, error: 'No se encontró configuración del barbero' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+/** Obtiene un mapa de configuraciones por barbero */
+export const getAllBarberScheduleConfigs = async (businessId) => {
+  try {
+    const snapshot = await getDocs(collection(db, 'barbers', businessId, 'barberConfigs'));
+    const configs = {};
+    snapshot.forEach((d) => {
+      configs[d.id] = d.data();
+    });
+    return { success: true, data: configs };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+/** Crea o actualiza la configuración de horario de un barbero */
+export const upsertBarberScheduleConfig = async (businessId, barberId, configData) => {
+  try {
+    await setDoc(
+      doc(db, 'barbers', businessId, 'barberConfigs', barberId),
+      {
+        ...configData,
+        barberId,
+        updatedAt: Timestamp.now()
+      },
+      { merge: true }
+    );
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+/** Marca que la contraseña temporal ya fue reemplazada */
+export const deactivateBarberTemporaryPassword = async (businessId, barberId) => {
+  try {
+    const barberDataRef = doc(db, 'barbers', businessId, 'config', 'barberdata');
+    const barberDataSnap = await getDoc(barberDataRef);
+    if (!barberDataSnap.exists()) {
+      return { success: false, error: 'No se encontró barberdata' };
+    }
+
+    const current = barberDataSnap.data();
+    const barbers = (current.barbers || []).map((barber) => {
+      if (barber.id !== barberId) return barber;
+      return {
+        ...barber,
+        temporaryPassword: '',
+        temporaryPasswordActive: false
+      };
+    });
+
+    await updateDoc(barberDataRef, { barbers, updatedAt: Timestamp.now() });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 // ── CAMBIO 2 & 3: Sistema de Bloqueos por Barbero ──────────────────────────
 
 /** Obtiene todos los bloqueos (días completos y rangos de horas) */
 export const getBarberBlocks = async (uid, barberId = null) => {
   try {
     const blocksRef = collection(db, 'barbers', uid, 'bloqueos');
-    let q = query(blocksRef, orderBy('fecha', 'asc'));
+    let snapshot;
     
+    // Intenta con query compuesto si hay barberId
     if (barberId) {
-      q = query(blocksRef, where('barberId', '==', barberId), orderBy('fecha', 'asc'));
+      try {
+        const q = query(blocksRef, where('barberId', '==', barberId), orderBy('fecha', 'asc'));
+        snapshot = await getDocs(q);
+      } catch (error) {
+        // Si falla por índice compuesto, obtiene todos y filtra en cliente
+        if (error.code === 'failed-precondition' || error.message?.includes('index')) {
+          console.warn('Índice compuesto no disponible, filtrando en cliente:', error.message);
+          const q = query(blocksRef, orderBy('fecha', 'asc'));
+          snapshot = await getDocs(q);
+        } else {
+          throw error;
+        }
+      }
+    } else {
+      const q = query(blocksRef, orderBy('fecha', 'asc'));
+      snapshot = await getDocs(q);
     }
 
-    const snapshot = await getDocs(q);
     const blocks = [];
     snapshot.forEach(d => {
       const data = d.data();
+      const fecha = data.fecha?.toDate ? data.fecha.toDate() : (data.fecha ? new Date(data.fecha) : new Date());
       blocks.push({ 
         id: d.id, 
         ...data, 
-        fecha: data.fecha.toDate() 
+        fecha
       });
     });
+    
+    // Filtra por barberId si es necesario (fallback para índice)
+    if (barberId) {
+      return { 
+        success: true, 
+        data: blocks.filter(b => b.barberId === barberId).sort((a, b) => a.fecha - b.fecha)
+      };
+    }
+    
     return { success: true, data: blocks };
   } catch (error) {
     console.error('Error al obtener bloqueos:', error);
-    return { success: false, error: error.message };
+    // Retorna error pero con datos vacíos para no romper la app
+    return { success: false, error: error.message, data: [] };
   }
 };
 
 /** Crea un nuevo bloqueo (día completo o específico) */
 export const addBarberBlock = async (uid, blockData) => {
   try {
+    if (!uid) {
+      return { success: false, error: 'UID del negocio no disponible' };
+    }
+    if (!blockData?.barberId || typeof blockData.barberId !== 'string') {
+      return { success: false, error: 'barberId inválido para crear bloqueo' };
+    }
+
     const blocksRef = collection(db, 'barbers', uid, 'bloqueos');
     const docRef = await addDoc(blocksRef, {
       ...blockData,
@@ -310,7 +508,8 @@ export const addBarberBlock = async (uid, blockData) => {
     return { success: true, id: docRef.id };
   } catch (error) {
     console.error('Error al agregar bloqueo:', error);
-    return { success: false, error: error.message };
+    const detailed = error?.code ? `${error.code}: ${error.message}` : error.message;
+    return { success: false, error: detailed };
   }
 };
 
@@ -343,6 +542,26 @@ export const getUnreadNotifications = async (uid) => {
   } catch (error) {
     return { success: false, error: error.message };
   }
+};
+
+/** Suscripción en tiempo real de notificaciones no leídas */
+export const subscribeToUnreadNotifications = (uid, onData, onError) => {
+  const q = query(
+    collection(db, 'barbers', uid, 'notifications'),
+    where('read', '==', false)
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const notifications = [];
+      snapshot.forEach((d) => notifications.push({ id: d.id, ...d.data() }));
+      onData(notifications);
+    },
+    (error) => {
+      if (onError) onError(error);
+    }
+  );
 };
 
 /** Marca una notificación como leída */

@@ -5,7 +5,18 @@ import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getBarberData, updateBarberData, getBarberBlocks, addBarberBlock, deleteBarberBlock, registerBarberInAuth } from '../firebase/firestoreService';
+import {
+  getBarberData,
+  updateBarberData,
+  getUserProfile,
+  setUserProfile,
+  getBarberBlocks,
+  addBarberBlock,
+  deleteBarberBlock,
+  getBarberScheduleConfig,
+  upsertBarberScheduleConfig
+} from '../firebase/firestoreService';
+import { createBarberAuthAccount } from '../firebase/authService';
 import Header from '../components/Header';
 import { 
   Link, 
@@ -33,7 +44,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { uid, barberData, refreshBarberData, isAdmin, linkedBarberId } = useAuth();
+  const { uid, effectiveUid, barberData, refreshBarberData, refreshUserProfile, isAdmin, linkedBarberId } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -46,13 +57,23 @@ const Settings = () => {
     closingTime: '18:00',
     appointmentDuration: 30,
     workingDays: [1, 2, 3, 4, 5, 6], // Lunes a Sábado por defecto
-    barbers: [{ id: 'barber-1', name: 'Barbero 1', email: '', active: true, autoAccept: false }]
+    barbers: [{ id: 'barber-1', name: 'Barbero 1', email: '', active: true, autoAccept: false, temporaryPassword: '', temporaryPasswordActive: false }]
   });
   const [newBarberName, setNewBarberName] = useState('');
   const [newBarberEmail, setNewBarberEmail] = useState('');
-  const [newBarberPassword, setNewBarberPassword] = useState('');
   const [isRegisteringAccount, setIsRegisteringAccount] = useState(false);
   const [initialSettingsHash, setInitialSettingsHash] = useState('');
+  const [barberSchedule, setBarberSchedule] = useState({
+    openingTime: '09:00',
+    closingTime: '18:00',
+    appointmentDuration: 30,
+    workingDays: [1, 2, 3, 4, 5, 6],
+    lunchBreakEnabled: false,
+    lunchStart: '13:00',
+    lunchEnd: '14:00'
+  });
+  const [savingBarberSchedule, setSavingBarberSchedule] = useState(false);
+  const [barberPasswordStatus, setBarberPasswordStatus] = useState({});
 
   // CAMBIO 4: Estado para 'Mis Bloqueos'
   const [myBlocks, setMyBlocks] = useState([]);
@@ -81,20 +102,22 @@ const Settings = () => {
         name: barber.name?.trim() || '',
         email: barber.email?.trim() || '',
         active: barber.active !== false,
-        autoAccept: !!barber.autoAccept
+        autoAccept: !!barber.autoAccept,
+        temporaryPassword: barber.temporaryPassword || '',
+        temporaryPasswordActive: !!barber.temporaryPasswordActive
       }))
     };
     return JSON.stringify(normalized);
   };
 
   // Generar URL de reserva
-  const bookingUrl = `${window.location.origin}/book/${uid}`;
+  const bookingUrl = `${window.location.origin}/book/${effectiveUid || uid}`;
 
   // Cargar datos
   useEffect(() => {
     const loadData = async () => {
       if (barberData) {
-        const defaultBarbers = [{ id: 'barber-1', name: 'Barbero 1', email: '', active: true, autoAccept: false }];
+        const defaultBarbers = [{ id: 'barber-1', name: 'Barbero 1', email: '', active: true, autoAccept: false, temporaryPassword: '', temporaryPasswordActive: false }];
         setSettings({
           name: barberData.name || '',
           phone: barberData.phone || '',
@@ -122,18 +145,80 @@ const Settings = () => {
 
   // CAMBIO 4: Cargar bloqueos
   const loadBlocks = async () => {
-    if (!uid) return;
+    if (!effectiveUid) return;
     const filterId = isAdmin ? null : linkedBarberId;
-    const res = await getBarberBlocks(uid, filterId);
+    const res = await getBarberBlocks(effectiveUid, filterId);
     if (res.success) setMyBlocks(res.data);
   };
 
   useEffect(() => {
     loadBlocks();
-  }, [uid, isAdmin, linkedBarberId]);
+  }, [effectiveUid, isAdmin, linkedBarberId]);
+
+  useEffect(() => {
+    const loadBarberSchedule = async () => {
+      if (isAdmin || !effectiveUid || !linkedBarberId) return;
+
+      const result = await getBarberScheduleConfig(effectiveUid, linkedBarberId);
+      if (result.success) {
+        setBarberSchedule({
+          openingTime: result.data.openingTime || '09:00',
+          closingTime: result.data.closingTime || '18:00',
+          appointmentDuration: result.data.appointmentDuration || 30,
+          workingDays: result.data.workingDays || [1, 2, 3, 4, 5, 6],
+          lunchBreakEnabled: !!result.data.lunchBreakEnabled,
+          lunchStart: result.data.lunchStart || '13:00',
+          lunchEnd: result.data.lunchEnd || '14:00'
+        });
+      } else if (barberData) {
+        setBarberSchedule({
+          openingTime: barberData.openingTime || '09:00',
+          closingTime: barberData.closingTime || '18:00',
+          appointmentDuration: barberData.appointmentDuration || 30,
+          workingDays: barberData.workingDays || [1, 2, 3, 4, 5, 6],
+          lunchBreakEnabled: false,
+          lunchStart: '13:00',
+          lunchEnd: '14:00'
+        });
+      }
+    };
+
+    loadBarberSchedule();
+  }, [isAdmin, effectiveUid, linkedBarberId, barberData]);
+
+  useEffect(() => {
+    const loadBarberPasswordStatus = async () => {
+      if (!isAdmin || !settings.barbers?.length) {
+        setBarberPasswordStatus({});
+        return;
+      }
+
+      const entries = await Promise.all(
+        settings.barbers.map(async (barber) => {
+          if (!barber.uid) return [barber.id, false];
+          const profileResult = await getUserProfile(barber.uid);
+          if (!profileResult.success || !profileResult.data) return [barber.id, false];
+
+          const hasChangedPassword =
+            !!profileResult.data.passwordChangedAt ||
+            profileResult.data.mustChangePassword === false;
+
+          return [barber.id, hasChangedPassword];
+        })
+      );
+
+      setBarberPasswordStatus(Object.fromEntries(entries));
+    };
+
+    loadBarberPasswordStatus();
+  }, [isAdmin, settings.barbers]);
 
   // CAMBIO 4: Agregar un bloqueo
   const handleAddBlock = async () => {
+    if (!effectiveUid) {
+      toast.error('No se pudo determinar la barbería para guardar el bloqueo');
+      return;
+    }
     if (newBlock.tipo === 'horas_especificas' && newBlock.horaInicio >= newBlock.horaFin) {
       toast.error('La hora de inicio debe ser anterior a la de fin');
       return;
@@ -142,11 +227,38 @@ const Settings = () => {
       toast.error('Selecciona un barbero para el bloqueo');
       return;
     }
+    if (!isAdmin && !linkedBarberId) {
+      toast.error('Tu perfil de barbero no está vinculado correctamente. Cierra sesión e inicia nuevamente.');
+      return;
+    }
 
     setSavingBlock(true);
-    const result = await addBarberBlock(uid, {
-      ...newBlock,
-      barberId: isAdmin ? newBlock.barberoId : linkedBarberId
+
+    // Auto-repara el perfil del barbero para cumplir reglas de seguridad en /bloqueos.
+    if (!isAdmin) {
+      const profileRepair = await setUserProfile(uid, {
+        role: 'barber',
+        businessId: effectiveUid,
+        barberId: linkedBarberId
+      });
+      if (!profileRepair.success) {
+        toast.error(profileRepair.error || 'No se pudo validar tu perfil para crear bloqueos');
+        setSavingBlock(false);
+        return;
+      }
+      await refreshUserProfile(uid);
+    }
+
+    const result = await addBarberBlock(effectiveUid, {
+      tipo: newBlock.tipo,
+      fecha: newBlock.fecha,
+      horaInicio: newBlock.horaInicio,
+      horaFin: newBlock.horaFin,
+      motivo: newBlock.motivo,
+      barberId: isAdmin ? newBlock.barberoId : linkedBarberId,
+      barberUid: isAdmin
+        ? (settings.barbers.find((b) => b.id === newBlock.barberoId)?.uid || null)
+        : uid
     });
 
     if (result.success) {
@@ -158,14 +270,14 @@ const Settings = () => {
         tipo: 'dia_completo'
       }));
     } else {
-      toast.error('Error al agregar bloqueo');
+      toast.error(result.error || 'Error al agregar bloqueo');
     }
     setSavingBlock(false);
   };
 
   // CAMBIO 4: Eliminar bloqueo
   const handleDeleteBlock = async (id) => {
-    const res = await deleteBarberBlock(uid, id);
+    const res = await deleteBarberBlock(effectiveUid, id);
     if (res.success) {
       toast.success('Bloqueo eliminado');
       setMyBlocks(prev => prev.filter(b => b.id !== id));
@@ -185,6 +297,16 @@ const Settings = () => {
     setCopied(true);
     toast.success('URL copiada al portapapeles');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyTemporaryPassword = async (password) => {
+    if (!password) return;
+    try {
+      await navigator.clipboard.writeText(password);
+      toast.success('Contraseña temporal copiada');
+    } catch {
+      toast.error('No se pudo copiar la contraseña');
+    }
   };
 
   // Descargar QR
@@ -213,8 +335,8 @@ const Settings = () => {
   };
 
   // Guardar cambios
-  const handleSave = async (e) => {
-    e.preventDefault();
+  const handleSave = async () => {
+    if (!isAdmin) return false;
     setSaving(true);
 
     const sanitizedBarbers = settings.barbers
@@ -223,21 +345,23 @@ const Settings = () => {
         name: barber.name?.trim() || '',
         email: barber.email?.trim() || '',
         active: barber.active !== false,
-        autoAccept: !!barber.autoAccept
+        autoAccept: !!barber.autoAccept,
+        temporaryPassword: barber.temporaryPassword || '',
+        temporaryPasswordActive: !!barber.temporaryPasswordActive
       }))
       .filter((barber) => barber.name.length > 0);
 
     if (sanitizedBarbers.length === 0) {
       toast.error('Debes tener al menos un barbero');
       setSaving(false);
-      return;
+      return false;
     }
 
     const activeBarbers = sanitizedBarbers.filter((barber) => barber.active);
     if (activeBarbers.length === 0) {
       toast.error('Debe existir al menos un barbero activo');
       setSaving(false);
-      return;
+      return false;
     }
 
     const updatedSettings = {
@@ -245,20 +369,43 @@ const Settings = () => {
       barbers: sanitizedBarbers
     };
     
-    const result = await updateBarberData(uid, updatedSettings);
+    const result = await updateBarberData(effectiveUid, updatedSettings);
     
     if (result.success) {
       // Refrescar datos del contexto para sincronizar
-      await refreshBarberData();
+      await refreshBarberData(effectiveUid);
       
       toast.success('Configuración guardada exitosamente');
       setSettings(updatedSettings);
       setInitialSettingsHash(getSettingsHash(updatedSettings));
+      setSaving(false);
+      return true;
     } else {
       toast.error('Error al guardar configuración');
+      setSaving(false);
+      return false;
     }
-    
-    setSaving(false);
+  };
+
+  const handleSaveSubmit = async (e) => {
+    e.preventDefault();
+    await handleSave();
+  };
+
+  const handleBackToDashboard = async () => {
+    if (!hasUnsavedChanges) {
+      navigate('/dashboard');
+      return;
+    }
+
+    const shouldSave = window.confirm('Tienes cambios sin guardar. ¿Deseas guardarlos antes de volver al panel?');
+    if (shouldSave) {
+      const saved = await handleSave();
+      if (saved) navigate('/dashboard');
+      return;
+    }
+
+    navigate('/dashboard');
   };
 
   // Toggle día laboral
@@ -271,49 +418,147 @@ const Settings = () => {
     }));
   };
 
+  const toggleBarberWorkingDay = (day) => {
+    setBarberSchedule(prev => ({
+      ...prev,
+      workingDays: prev.workingDays.includes(day)
+        ? prev.workingDays.filter(d => d !== day)
+        : [...prev.workingDays, day].sort()
+    }));
+  };
+
+  const handleSaveBarberSchedule = async () => {
+    if (isAdmin || !effectiveUid || !linkedBarberId) return;
+    if (barberSchedule.openingTime >= barberSchedule.closingTime) {
+      toast.error('La hora de apertura debe ser menor a la de cierre');
+      return;
+    }
+    if (!barberSchedule.workingDays.length) {
+      toast.error('Debes seleccionar al menos un día laborable');
+      return;
+    }
+    if (barberSchedule.lunchBreakEnabled) {
+      if (barberSchedule.lunchStart >= barberSchedule.lunchEnd) {
+        toast.error('La hora de almuerzo inicio debe ser menor a la de fin');
+        return;
+      }
+      if (barberSchedule.lunchStart < barberSchedule.openingTime || barberSchedule.lunchEnd > barberSchedule.closingTime) {
+        toast.error('La hora de almuerzo debe estar dentro del horario de atención');
+        return;
+      }
+    }
+
+    setSavingBarberSchedule(true);
+
+    // Auto-repara el perfil del barbero para cumplir reglas de seguridad
+    // en /barbers/{businessId}/barberConfigs/{barberId}.
+    await setUserProfile(uid, {
+      role: 'barber',
+      businessId: effectiveUid,
+      barberId: linkedBarberId
+    });
+
+    const result = await upsertBarberScheduleConfig(effectiveUid, linkedBarberId, {
+      openingTime: barberSchedule.openingTime,
+      closingTime: barberSchedule.closingTime,
+      appointmentDuration: barberSchedule.appointmentDuration,
+      workingDays: barberSchedule.workingDays,
+      lunchBreakEnabled: barberSchedule.lunchBreakEnabled,
+      lunchStart: barberSchedule.lunchBreakEnabled ? barberSchedule.lunchStart : null,
+      lunchEnd: barberSchedule.lunchBreakEnabled ? barberSchedule.lunchEnd : null,
+      barberUid: uid
+    });
+
+    if (result.success) {
+      toast.success('Tu horario fue actualizado');
+    } else {
+      toast.error(result.error || 'No se pudo guardar tu horario');
+    }
+    setSavingBarberSchedule(false);
+  };
+
   const createBarberId = () => {
     return `barber-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   };
 
-  // CAMBIO FINAL: Agregar Barbero con cuenta Firebase Auth
+  const generateTemporaryPassword = () => {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let value = '';
+    for (let i = 0; i < 10; i += 1) {
+      value += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    return value;
+  };
+
+  // Agregar Barbero a la lista
   const handleAddBarber = async () => {
+    if (!isAdmin) return;
     if (!newBarberName.trim()) { toast.error('El nombre es requerido'); return; }
     if (!newBarberEmail.trim()) { toast.error('El email es requerido'); return; }
-    if (newBarberPassword.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return; }
 
     setIsRegisteringAccount(true);
-    const newId = `barber-${Date.now()}`;
-    
-    // 1. Crear cuenta en Firebase Auth vía Cloud Function
-    const result = await registerBarberInAuth({
+    const newId = createBarberId();
+    const temporaryPassword = generateTemporaryPassword();
+
+    const authResult = await createBarberAuthAccount({
       email: newBarberEmail.trim(),
-      password: newBarberPassword,
-      name: newBarberName.trim(),
-      barberId: newId
+      temporaryPassword
     });
 
-    if (result.success) {
-      // 2. Registrar en la lista de barberos del negocio localmente
-      const newBarber = {
-        id: newId,
-        uid: result.data.uid, // Guardar el UID de auth para mapearlo al dashboard
-        name: newBarberName.trim(),
-        email: newBarberEmail.trim(),
-        active: true,
-        autoAccept: false
-      };
-      
-      const newBarbers = [...settings.barbers, newBarber];
+    if (!authResult.success) {
+      toast.error(authResult.error || 'No se pudo crear el acceso del barbero');
+      setIsRegisteringAccount(false);
+      return;
+    }
+    
+    // Crear registro local del barbero con contraseña temporal visible para admin.
+    const newBarber = {
+      id: newId,
+      uid: authResult.uid,
+      name: newBarberName.trim(),
+      email: newBarberEmail.trim(),
+      active: true,
+      autoAccept: false,
+      temporaryPassword,
+      temporaryPasswordActive: true
+    };
+    
+    const newBarbers = [...settings.barbers, newBarber];
+    const saveResult = await updateBarberData(effectiveUid, { barbers: newBarbers });
+    
+    if (saveResult.success) {
       setSettings(prev => ({ ...prev, barbers: newBarbers }));
+      await refreshBarberData(effectiveUid);
+
+      // Crear perfil en /users/{barberUid} para que en el primer login quede
+      // clasificado correctamente como barbero (role:'barber') y no admin.
+      await setUserProfile(authResult.uid, {
+        role: 'barber',
+        barberId: newId,
+        businessId: uid,
+        email: newBarberEmail.trim().toLowerCase(),
+        mustChangePassword: true,
+        createdAt: new Date()
+      });
+
+      await upsertBarberScheduleConfig(effectiveUid, newId, {
+        openingTime: settings.openingTime,
+        closingTime: settings.closingTime,
+        appointmentDuration: settings.appointmentDuration,
+        workingDays: settings.workingDays,
+        lunchBreakEnabled: false,
+        lunchStart: null,
+        lunchEnd: null,
+        barberUid: authResult.uid
+      });
       
-      toast.success(`Cuenta creada para ${newBarberName}`);
+      toast.success(`Barbero creado con acceso temporal: ${newBarberName}`);
       
-      // Limpiar formulario y cerrar sección (esto se guarda al dar click a 'Guardar Cambios' general)
+      // Limpiar formulario
       setNewBarberName('');
       setNewBarberEmail('');
-      setNewBarberPassword('');
     } else {
-      toast.error('Error al crear cuenta: ' + result.error);
+      toast.error('Error al añadir barbero: ' + saveResult.error);
     }
     setIsRegisteringAccount(false);
   };
@@ -387,13 +632,7 @@ const Settings = () => {
           </div>
           <button
             type="button"
-            onClick={() => {
-              if (hasUnsavedChanges) {
-                toast.error('Guarda los cambios antes de regresar');
-                return;
-              }
-              navigate('/dashboard');
-            }}
+            onClick={handleBackToDashboard}
             className="btn-secondary flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -403,6 +642,7 @@ const Settings = () => {
 
         <div className="space-y-6">
           {/* URL de Reserva y QR */}
+          {isAdmin && (
           <div className="card">
             <h3 className="text-xl font-semibold text-primary mb-4 flex items-center gap-2">
               <Link className="w-5 h-5" />
@@ -456,16 +696,18 @@ const Settings = () => {
               </div>
             </div>
           </div>
+          )}
 
           {/* Perfil de la Barbería */}
           {isAdmin && (
-          <form onSubmit={handleSave} className="card">
-            <h3 className="text-xl font-semibold text-primary mb-6 flex items-center gap-2">
-              <User className="w-5 h-5" />
-              Perfil de la Barbería
-            </h3>
+          <form onSubmit={handleSaveSubmit} className="space-y-6">
+            <div className="card">
+              <h3 className="text-xl font-semibold text-primary mb-6 flex items-center gap-2">
+                <User className="w-5 h-5" />
+                Perfil de la Barbería
+              </h3>
 
-            <div className="space-y-5">
+              <div className="space-y-5">
               <div>
                 <label htmlFor="name" className="label">
                   Nombre del Negocio
@@ -516,11 +758,10 @@ const Settings = () => {
                 </div>
               </div>
             </div>
-          </form>
-          )}
+            </div>
 
-          {/* Barberos — CAMBIO 1: Solo visible para administradores */}
-          {isAdmin ? (
+          {/* Barberos */}
+          {isAdmin && (
           <div className="card">
             <h3 className="text-xl font-semibold text-primary mb-6 flex items-center gap-2">
               <Users className="w-5 h-5" />
@@ -545,25 +786,17 @@ const Settings = () => {
                     className="input"
                     disabled={isRegisteringAccount}
                   />
-                  <input
-                    type="password"
-                    value={newBarberPassword}
-                    onChange={(e) => setNewBarberPassword(e.target.value)}
-                    placeholder="Contraseña acceso"
-                    className="input"
-                    disabled={isRegisteringAccount}
-                  />
                   <button
                     type="button"
                     onClick={handleAddBarber}
                     disabled={isRegisteringAccount}
                     className="btn-primary flex items-center justify-center gap-2"
                   >
-                    {isRegisteringAccount ? <LoadingSpinner size="small" /> : <><Plus className="w-4 h-4" /> Crear Cuenta</>}
+                    {isRegisteringAccount ? <LoadingSpinner size="small" /> : <><Plus className="w-4 h-4" /> Añadir Barbero</>}
                   </button>
                 </div>
                 <p className="text-[10px] text-text-secondary mt-1">
-                  * Al crear el barbero, se generará una cuenta de acceso real para él/ella.
+                  * Al agregar un barbero se crea su cuenta de acceso con contraseña temporal.
                 </p>
             </div>
 
@@ -635,6 +868,23 @@ const Settings = () => {
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                      {barber.temporaryPasswordActive && barber.temporaryPassword && !barberPasswordStatus[barber.id] ? (
+                        <div className="w-full sm:w-auto bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                          <p className="text-xs font-semibold text-amber-800">Contraseña temporal</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-sm font-mono text-amber-900 break-all">{barber.temporaryPassword}</p>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyTemporaryPassword(barber.temporaryPassword)}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 rounded transition-colors"
+                              title="Copiar contraseña temporal"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              Copiar
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => handleToggleAutoAccept(barber.id)}
@@ -662,23 +912,13 @@ const Settings = () => {
                 El auto-aceptar confirma automáticamente las citas que respeten disponibilidad.
               </p>
             </div>
-          ) : (
-            <div className="card">
-              <h3 className="text-xl font-semibold text-primary mb-4 flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Barberos de la Barbería
-              </h3>
-              <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                <Shield className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                <p className="text-amber-800 text-sm">
-                  Solo el <strong>administrador</strong> puede agregar o gestionar barberos.
-                </p>
-              </div>
-            </div>
+          )}
+          </form>
           )}
 
-          {/* CAMBIO 4: Mis Bloqueos — Panel del Barbero */}
-          <div className="card">
+          {/* Mis Bloqueos — visible para todos */}
+          <>
+            <div className="card">
             <h3 className="text-xl font-semibold text-primary mb-6 flex items-center gap-2">
               <Ban className="w-5 h-5 text-danger" />
               Mis Bloqueos
@@ -820,56 +1060,42 @@ const Settings = () => {
             </div>
           </div>
 
-          {/* Configuración de Horarios */}
+          {/* Horario personal del barbero */}
+          {!isAdmin && (
           <div className="card">
             <h3 className="text-xl font-semibold text-primary mb-6 flex items-center gap-2">
               <Clock className="w-5 h-5" />
-              Horarios de Atención
+              Mi Horario de Atención
             </h3>
 
             <div className="space-y-6">
-              {/* Horario de apertura y cierre */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="openingTime" className="label">
-                    Hora de Apertura
-                  </label>
+                  <label className="label">Hora de Apertura</label>
                   <input
                     type="time"
-                    id="openingTime"
-                    value={settings.openingTime}
-                    onChange={(e) => setSettings(prev => ({ ...prev, openingTime: e.target.value }))}
+                    value={barberSchedule.openingTime}
+                    onChange={(e) => setBarberSchedule(prev => ({ ...prev, openingTime: e.target.value }))}
                     className="input"
-                    required
                   />
                 </div>
-
                 <div>
-                  <label htmlFor="closingTime" className="label">
-                    Hora de Cierre
-                  </label>
+                  <label className="label">Hora de Cierre</label>
                   <input
                     type="time"
-                    id="closingTime"
-                    value={settings.closingTime}
-                    onChange={(e) => setSettings(prev => ({ ...prev, closingTime: e.target.value }))}
+                    value={barberSchedule.closingTime}
+                    onChange={(e) => setBarberSchedule(prev => ({ ...prev, closingTime: e.target.value }))}
                     className="input"
-                    required
                   />
                 </div>
               </div>
 
-              {/* Duración de citas */}
               <div>
-                <label htmlFor="appointmentDuration" className="label">
-                  Duración de cada Cita (minutos)
-                </label>
+                <label className="label">Duración de cada Cita (minutos)</label>
                 <select
-                  id="appointmentDuration"
-                  value={settings.appointmentDuration}
-                  onChange={(e) => setSettings(prev => ({ ...prev, appointmentDuration: parseInt(e.target.value) }))}
+                  value={barberSchedule.appointmentDuration}
+                  onChange={(e) => setBarberSchedule(prev => ({ ...prev, appointmentDuration: parseInt(e.target.value) }))}
                   className="input"
-                  required
                 >
                   <option value={15}>15 minutos</option>
                   <option value={30}>30 minutos</option>
@@ -878,19 +1104,16 @@ const Settings = () => {
                 </select>
               </div>
 
-              {/* Días laborables */}
               <div>
-                <label className="label mb-3">
-                  Días Laborables
-                </label>
+                <label className="label mb-3">Días Laborables</label>
                 <div className="flex flex-wrap gap-2">
                   {daysOfWeek.map(day => (
                     <button
                       key={day.value}
                       type="button"
-                      onClick={() => toggleWorkingDay(day.value)}
+                      onClick={() => toggleBarberWorkingDay(day.value)}
                       className={`px-4 py-2 rounded-elegant font-medium transition-all ${
-                        settings.workingDays.includes(day.value)
+                        barberSchedule.workingDays.includes(day.value)
                           ? 'bg-primary text-white'
                           : 'bg-background text-text-secondary hover:bg-gray-200'
                       }`}
@@ -899,34 +1122,80 @@ const Settings = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-sm text-text-secondary mt-2">
-                  Selecciona los días en los que tu negocio está abierto
-                </p>
+              </div>
+
+              <div className="bg-background rounded-elegant p-4 border border-border">
+                <label className="flex items-center gap-2 text-sm font-medium text-primary mb-3">
+                  <input
+                    type="checkbox"
+                    checked={barberSchedule.lunchBreakEnabled}
+                    onChange={(e) => setBarberSchedule(prev => ({ ...prev, lunchBreakEnabled: e.target.checked }))}
+                  />
+                  Configurar hora de almuerzo
+                </label>
+
+                {barberSchedule.lunchBreakEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">Inicio almuerzo</label>
+                      <input
+                        type="time"
+                        value={barberSchedule.lunchStart}
+                        onChange={(e) => setBarberSchedule(prev => ({ ...prev, lunchStart: e.target.value }))}
+                        className="input"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Fin almuerzo</label>
+                      <input
+                        type="time"
+                        value={barberSchedule.lunchEnd}
+                        onChange={(e) => setBarberSchedule(prev => ({ ...prev, lunchEnd: e.target.value }))}
+                        className="input"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSaveBarberSchedule}
+                  disabled={savingBarberSchedule}
+                  className="btn-gold px-8 flex items-center gap-2"
+                >
+                  {savingBarberSchedule ? <LoadingSpinner size="small" /> : <Save className="w-5 h-5" />}
+                  Guardar Mi Horario
+                </button>
               </div>
             </div>
           </div>
+          )}
+          </>
 
-          {/* Botón guardar */}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              onClick={handleSave}
-              disabled={saving}
-              className="btn-gold px-8 flex items-center gap-2"
-            >
-              {saving ? (
-                <>
-                  <LoadingSpinner size="small" />
-                  Guardando...
-                </>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />
-                  Guardar Cambios
-                </>
-              )}
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="btn-gold px-8 flex items-center gap-2"
+              >
+                {saving ? (
+                  <>
+                    <LoadingSpinner size="small" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Guardar Cambios
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </div>

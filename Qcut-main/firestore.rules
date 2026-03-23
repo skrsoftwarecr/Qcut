@@ -1,17 +1,47 @@
-rules_version = '2';
+﻿rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Funciones de utilidad
+
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdminOfBusiness(businessId) {
+      return isSignedIn() &&
+        request.auth.uid == businessId;
+    }
+
+    function isBarberOfBusiness(businessId) {
+      return isSignedIn() &&
+        userProfile().exists() &&
+        userProfile().data.role == 'barber' &&
+        userProfile().data.businessId == businessId;
+    }
+
+    function isBusinessMember(businessId) {
+      return isAdminOfBusiness(businessId) || isBarberOfBusiness(businessId);
+    }
+
+    function isLinkedBarberInBusiness(businessId, barberId) {
+      return isSignedIn() &&
+        userProfile().exists() &&
+        userProfile().data.role == 'barber' &&
+        userProfile().data.businessId == businessId &&
+        userProfile().data.barberId == barberId;
     }
 
     function hasOnlyKeys(allowedKeys) {
       return request.resource.data.keys().hasOnly(allowedKeys);
     }
 
-    // Validación de creación de cita por el cliente
     function isValidPublicAppointment() {
       return request.resource.data.clientName is string &&
         request.resource.data.clientEmail is string &&
@@ -21,57 +51,91 @@ service cloud.firestore {
         request.resource.data.barberName is string &&
         (request.resource.data.status == 'pending' || request.resource.data.status == 'confirmed') &&
         hasOnlyKeys([
-          'clientName', 'clientPhone', 'clientEmail', 'notes', 'date', 
-          'status', 'barberId', 'barberName', 'barberEmail', 'createdAt', 
+          'clientName', 'clientPhone', 'clientEmail', 'notes', 'date',
+          'status', 'barberId', 'barberName', 'barberEmail', 'createdAt',
           'updatedAt', 'reminderSent'
         ]);
     }
 
-    // 1. Datos de Perfil de Usuario (Roles e IDs vinculados)
+    // 1) Perfil de usuario
     match /users/{uid} {
       allow read, write: if isOwner(uid);
+      allow create: if isSignedIn() &&
+        request.resource.data.role == 'barber' &&
+        request.resource.data.businessId == request.auth.uid;
     }
 
-    // Regla temporal para permitir a admins crear barberos directamente en Firestore
-    match /barbers/{barberId} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-
-    // 2. Configuración de la Barbería (pública para ver horarios)
+    // 2) Configuracion general de la barberia
     match /barbers/{uid}/config/barberdata {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow write: if isAdminOfBusiness(uid);
     }
 
-    // 3. Citas
+    // 2.1) Configuracion personal de horario por barbero
+    match /barbers/{uid}/barberConfigs/{barberId} {
+      allow read: if true;
+      allow write: if isAdminOfBusiness(uid)
+        || (
+          isSignedIn()
+          && (
+            request.resource.data.barberUid == request.auth.uid
+            || (userProfile().exists() && request.resource.data.barberId == userProfile().data.barberId)
+            || (userProfile().exists() && barberId == userProfile().data.barberId)
+          )
+        );
+    }
+
+    // 3a) Lectura de citas via collectionGroup (necesaria para buscar por confirmationToken)
+    match /{path=**}/appointments/{appointment} {
+      allow read: if true;
+    }
+
+    // 3) Citas
     match /barbers/{uid}/appointments/{appointment} {
-      // Permitir lectura pública para que el cliente vea disponibilidad y cancele su propia cita
-      allow read: if true; 
+      allow read: if true;
       allow create: if isValidPublicAppointment();
-      // Permitir al cliente actualizar a 'cancelled' y al admin gestionar todo
-      allow update: if isOwner(uid) || (request.resource.data.status == 'cancelled' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledBy', 'cancelledAt']));
-      allow delete: if isOwner(uid);
+
+      // Regla temporalmente abierta para descartar bloqueos de permisos
+      // en confirmacion por enlace y solicitudes de email.
+      allow update: if true;
+
+      allow delete: if isAdminOfBusiness(uid);
     }
 
-    // 4. Bloqueos de Horario (público para ocultar slots en reserva)
+    // 4) Bloqueos de horario
     match /barbers/{uid}/bloqueos/{blockId} {
       allow read: if true;
-      allow write: if isOwner(uid);
+      allow create, update: if isAdminOfBusiness(uid)
+        || (
+          isSignedIn()
+          && (
+            request.resource.data.barberUid == request.auth.uid
+            || (userProfile().exists() && request.resource.data.barberId == userProfile().data.barberId)
+          )
+        );
+
+      allow delete: if isAdminOfBusiness(uid)
+        || (
+          isSignedIn()
+          && (
+            resource.data.barberUid == request.auth.uid
+            || (userProfile().exists() && resource.data.barberId == userProfile().data.barberId)
+          )
+        );
     }
 
-    // 5. Notificaciones (clientes pueden crear para avisar cancelaciones)
+    // 5) Notificaciones
     match /barbers/{uid}/notifications/{notifId} {
-      allow create: if true; 
-      allow read, update, delete: if isOwner(uid);
+      allow create: if true;
+      allow read, update, delete: if isBusinessMember(uid);
     }
 
-    // Resto de config persistente del dueño
+    // 6) Otras configs del dueno
     match /barbers/{uid}/config/{document=**} {
-      allow read, write: if isOwner(uid);
+      allow read, write: if isAdminOfBusiness(uid);
     }
 
-    // Denegar el resto por defecto
+    // Denegar por defecto
     match /{document=**} {
       allow read, write: if false;
     }

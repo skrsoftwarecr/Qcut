@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { getBarberData, getScheduleConfig, getAppointmentsByDate, createAppointment, getBarberBlocks, getClientAppointmentsByPhone, cancelAppointmentByClient } from '../firebase/firestoreService';
+import {
+  getBarberData,
+  getScheduleConfig,
+  getAppointmentsByDate,
+  createAppointment,
+  getBarberBlocks,
+  getClientAppointmentsByPhone,
+  cancelAppointmentByClient,
+  getAllBarberScheduleConfigs
+} from '../firebase/firestoreService';
 import toast from 'react-hot-toast';
 import { 
   Calendar as CalendarIcon, 
@@ -35,6 +44,7 @@ const BookingPage = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [existingAppointments, setExistingAppointments] = useState([]);
   const [allBlocks, setAllBlocks] = useState([]); // CAMBIO 2 & 3: Nueva colección bloqueos
+  const [barberSchedules, setBarberSchedules] = useState({});
   
   // CAMBIO 5: Estado para cancelación de citas del cliente
   const [showCancelSection, setShowCancelSection] = useState(false);
@@ -75,6 +85,9 @@ const BookingPage = () => {
       // CAMBIO 2 & 3: Cargar TODOS los bloqueos del negocio
       const blocksResult = await getBarberBlocks(businessId);
       if (blocksResult.success) setAllBlocks(blocksResult.data);
+
+      const schedulesResult = await getAllBarberScheduleConfigs(businessId);
+      if (schedulesResult.success) setBarberSchedules(schedulesResult.data);
       
       setLoading(false);
     };
@@ -131,6 +144,8 @@ const BookingPage = () => {
   // Verificar si un día es laborable
   const isWorkingDay = (date) => {
     if (!scheduleConfig) return false;
+
+    const selectedSchedule = barberSchedules[selectedBarberId] || scheduleConfig;
     
     // Verificar si el barbero seleccionado tiene este día bloqueado completamente
     const isDayBlocked = allBlocks.some(block => 
@@ -142,7 +157,7 @@ const BookingPage = () => {
     if (isDayBlocked) return false;
 
     const dayOfWeek = date.getDay();
-    return scheduleConfig.workingDays.includes(dayOfWeek);
+    return (selectedSchedule.workingDays || []).includes(dayOfWeek);
   };
 
   // Verificar si un día está disponible (no pasado y es laborable)
@@ -155,13 +170,18 @@ const BookingPage = () => {
   const availableTimeSlots = useMemo(() => {
     if (!selectedDate || !scheduleConfig || !selectedBarberId) return [];
 
+    const selectedSchedule = barberSchedules[selectedBarberId] || scheduleConfig;
+
     const slots = [];
-    const [openHour, openMinute] = scheduleConfig.openingTime.split(':').map(Number);
-    const [closeHour, closeMinute] = scheduleConfig.closingTime.split(':').map(Number);
+    const [openHour, openMinute] = (selectedSchedule.openingTime || '09:00').split(':').map(Number);
+    const [closeHour, closeMinute] = (selectedSchedule.closingTime || '18:00').split(':').map(Number);
     
     const openingMinutes = openHour * 60 + openMinute;
     const closingMinutes = closeHour * 60 + closeMinute;
-    const duration = scheduleConfig.appointmentDuration;
+    const duration = selectedSchedule.appointmentDuration || 30;
+    const lunchEnabled = !!selectedSchedule.lunchBreakEnabled;
+    const lunchStart = selectedSchedule.lunchStart;
+    const lunchEnd = selectedSchedule.lunchEnd;
 
     // Generar todos los slots posibles
     for (let minutes = openingMinutes; minutes < closingMinutes; minutes += duration) {
@@ -181,24 +201,27 @@ const BookingPage = () => {
         return aptTime === timeString;
       });
 
-    // CAMBIO 3: Verificar si el slot está bloqueado
-      const DAY_MAP = { 0:'domingo',1:'lunes',2:'martes',3:'miercoles',4:'jueves',5:'viernes',6:'sabado' };
-      const dayName = DAY_MAP[selectedDate.getDay()];
+      // CAMBIO 3: Verificar si el slot está bloqueado (modelo actual por fecha+barberId)
       const isBlocked = allBlocks.some(block => {
-        if (block.dia !== dayName) return false;
-        if (block.barberoId !== 'todos' && block.barberoId !== selectedBarberId) return false;
+        if (block.barberId !== selectedBarberId) return false;
+        if (!isSameDay(new Date(block.fecha), selectedDate)) return false;
+        if (block.tipo === 'dia_completo') return true;
         return timeString >= block.horaInicio && timeString < block.horaFin;
       });
 
+      const isLunchBreak = lunchEnabled && lunchStart && lunchEnd
+        ? timeString >= lunchStart && timeString < lunchEnd
+        : false;
+
       slots.push({
         time: timeString,
-        available: !isOccupied && !isBlocked,
-        blocked: isBlocked
+        available: !isOccupied && !isBlocked && !isLunchBreak,
+        blocked: isBlocked || isLunchBreak
       });
     }
 
     return slots;
-  }, [selectedDate, scheduleConfig, existingAppointments, selectedBarberId, barberData]);
+  }, [selectedDate, scheduleConfig, existingAppointments, selectedBarberId, barberData, allBlocks, barberSchedules]);
 
   // Validar formulario
   const validateForm = () => {
@@ -276,105 +299,32 @@ const BookingPage = () => {
     const result = await createAppointment(businessId, appointmentData);
 
     if (result.success) {
-      // Preparar datos de notificación
-      const notificationData = {
-        barberName: appointmentData.barberName,
-        barberEmail: appointmentData.barberEmail,
-        clientName: appointmentData.clientName,
-        clientPhone: appointmentData.clientPhone,
-        appointmentDate: appointmentDate.toISOString(),
-        autoAccepted: selectedBarber?.autoAccept || false
-      };
-
-      // Enviar emails via Google Apps Script
       const isAutoAccepted = selectedBarber?.autoAccept || false;
 
-      // Validar que tenemos emails válidos (no vacíos ni undefined)
+      // Notificar solo al barbero sobre nueva solicitud de cita.
+      // La confirmación del cliente se solicitará manualmente desde Dashboard > Confirmaciones.
       const hasValidBarberEmail = appointmentData.barberEmail && appointmentData.barberEmail.trim() !== '';
-      const hasValidClientEmail = formData.clientEmail && formData.clientEmail.trim() !== '';
-      
-      console.log('🔍 VALIDACIÓN DE EMAILS:');
-      console.log('  - Barber Email:', appointmentData.barberEmail);
-      console.log('  - Barber Email válido?:', hasValidBarberEmail);
-      console.log('  - Client Email:', formData.clientEmail);
-      console.log('  - Client Email válido?:', hasValidClientEmail);
-      console.log('  - Selected Barber:', selectedBarber);
-      console.log('  - Barber Data email fallback:', barberData?.email);
-      
-      if (!GOOGLE_SCRIPT_URL) {
-        console.warn('⚠️ VITE_GOOGLE_SCRIPT_URL no está configurada. Se omite envío de emails.');
-      } else if (hasValidBarberEmail && hasValidClientEmail) {
-        console.log('📧 ENVIANDO EMAILS');
-        console.log('autoAccept:', isAutoAccepted);
-        
-        if (isAutoAccepted) {
-          // Caso 1: Confirmación automática
-          console.log('✅ Confirmación AUTOMÁTICA - Enviando confirmación al cliente');
-          
-          // Email al barbero (informativo)
-          const barberPayload = {
-            type: 'appointment_auto_confirmed',
-            barberEmail: appointmentData.barberEmail,
-            barberName: appointmentData.barberName,
-            clientName: appointmentData.clientName,
-            clientPhone: appointmentData.clientPhone,
-            appointmentDate: appointmentDate.toISOString()
-          };
-          
-          // Email al cliente (confirmación de cita)
-          const clientPayload = {
-            type: 'appointment_confirmed',
-            clientEmail: formData.clientEmail,
-            clientName: appointmentData.clientName,
-            barberName: appointmentData.barberName,
-            appointmentDate: appointmentDate.toISOString()
-          };
-          
-          // Enviar ambos emails
-          fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(barberPayload)
-          }).catch(error => console.error('Error notificando barbero:', error));
-          
-          fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(clientPayload)
-          }).catch(error => console.error('Error notificando cliente:', error));
-          
-          console.log('✅ Emails enviados (confirmación automática)');
-        } else {
-          // Caso 2: Requiere aprobación del barbero
-          console.log('⏳ Confirmación MANUAL - Esperando aprobación del barbero');
-          
-          const barberPayload = {
-            type: 'appointment_pending_approval',
-            barberEmail: appointmentData.barberEmail,
-            barberName: appointmentData.barberName,
-            clientName: appointmentData.clientName,
-            clientPhone: appointmentData.clientPhone,
-            appointmentDate: appointmentDate.toISOString()
-          };
-          
-          fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(barberPayload)
-          }).catch(error => console.error('Error solicitando aprobación:', error));
-          
-          console.log('✅ Email enviado (esperando aprobación del barbero)');
-        }
-      } else {
-        console.warn('❌ NO SE ENVIARON EMAILS');
-        console.warn('  - Email barbero vacío?', !appointmentData.barberEmail || appointmentData.barberEmail.trim() === '');
-        console.warn('  - Email cliente vacío?', !formData.clientEmail || formData.clientEmail.trim() === '');
-        console.warn('  - Barbero Email:', appointmentData.barberEmail);
-        console.warn('  - Cliente Email:', formData.clientEmail);
+      if (hasValidBarberEmail) {
+        const barberPayload = {
+          type: isAutoAccepted ? 'appointment_auto_confirmed' : 'appointment_pending_approval',
+          barberEmail: appointmentData.barberEmail,
+          barberName: appointmentData.barberName,
+          clientName: appointmentData.clientName,
+          clientPhone: appointmentData.clientPhone,
+          appointmentDate: appointmentDate.toISOString()
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify(barberPayload)
+        }).catch(error => console.error('Error notificando barbero:', error));
       }
 
-      setIsAutoAccepted(selectedBarber?.autoAccept || false);
+      setIsAutoAccepted(isAutoAccepted);
       setSuccess(true);
-      const statusMessage = selectedBarber?.autoAccept 
+      const statusMessage = isAutoAccepted
         ? '¡Cita confirmada automáticamente!'
-        : '¡Cita agendada! Espera la confirmación del barbero.';
+        : '¡Cita agendada! El barbero la revisará pronto.';
       toast.success(statusMessage);
       
       // Reset form

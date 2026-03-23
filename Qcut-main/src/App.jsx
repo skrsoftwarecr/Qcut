@@ -9,14 +9,17 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import BookingPage from './pages/BookingPage';
+import ConfirmAppointment from './pages/ConfirmAppointment';
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Ruta pública de reservas - completamente aislada */}
+          {/* Rutas públicas de reservas y confirmación de citas */}
           <Route path="/book/:businessId" element={<BookingPage />} />
+          <Route path="/confirm-appointment" element={<ConfirmAppointment />} />
+          <Route path="/confirm-appointment/:token" element={<ConfirmAppointment />} />
           
           {/* Rutas de autenticación */}
           <Route path="/login" element={<Login />} />
