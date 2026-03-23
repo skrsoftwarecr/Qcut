@@ -71,14 +71,20 @@ export const createInitialBarberData = async (uid, email) => {
   }
 };
 
-/** Registrar cuenta autenticada para un barbero (Cloud Function) */
+/** Registrar cuenta autenticada para un barbero (Solución Temporal sin Cloud Functions) */
 export const registerBarberInAuth = async (barberData) => {
   try {
-    const registrar = httpsCallable(functions, 'registrarBarbero');
-    const result = await registrar(barberData);
-    return { success: true, data: result.data };
+    const { barberId, name, email, password } = barberData;
+    await setDoc(doc(db, 'barbers', barberId), {
+      name,
+      email,
+      password, // Almacenar temporalmente (solo por la instruccion de evitar auth)
+      role: 'barber',
+      createdAt: new Date()
+    });
+    return { success: true, data: { uid: barberId } };
   } catch (error) {
-    console.error('Error al registrar cuenta de barbero:', error);
+    console.error('Error al crear documento temporal de barbero:', error);
     return { success: false, error: error.message };
   }
 };
