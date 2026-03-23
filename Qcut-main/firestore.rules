@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Funciones de utilidad
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function hasOnlyKeys(allowedKeys) {
+      return request.resource.data.keys().hasOnly(allowedKeys);
+    }
+
+    // Validación de creación de cita por el cliente
+    function isValidPublicAppointment() {
+      return request.resource.data.clientName is string &&
+        request.resource.data.clientEmail is string &&
+        request.resource.data.clientPhone is string &&
+        request.resource.data.date is timestamp &&
+        request.resource.data.barberId is string &&
+        request.resource.data.barberName is string &&
+        (request.resource.data.status == 'pending' || request.resource.data.status == 'confirmed') &&
+        hasOnlyKeys([
+          'clientName', 'clientPhone', 'clientEmail', 'notes', 'date', 
+          'status', 'barberId', 'barberName', 'barberEmail', 'createdAt', 
+          'updatedAt', 'reminderSent'
+        ]);
+    }
+
+    // 1. Datos de Perfil de Usuario (Roles e IDs vinculados)
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // 2. Configuración de la Barbería (pública para ver horarios)
+    match /barbers/{uid}/config/barberdata {
+      allow read: if true;
+      allow write: if isOwner(uid);
+    }
+
+    // 3. Citas
+    match /barbers/{uid}/appointments/{appointment} {
+      // Permitir lectura pública para que el cliente vea disponibilidad y cancele su propia cita
+      allow read: if true; 
+      allow create: if isValidPublicAppointment();
+      // Permitir al cliente actualizar a 'cancelled' y al admin gestionar todo
+      allow update: if isOwner(uid) || (request.resource.data.status == 'cancelled' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledBy', 'cancelledAt']));
+      allow delete: if isOwner(uid);
+    }
+
+    // 4. Bloqueos de Horario (público para ocultar slots en reserva)
+    match /barbers/{uid}/bloqueos/{blockId} {
+      allow read: if true;
+      allow write: if isOwner(uid);
+    }
+
+    // 5. Notificaciones (clientes pueden crear para avisar cancelaciones)
+    match /barbers/{uid}/notifications/{notifId} {
+      allow create: if true; 
+      allow read, update, delete: if isOwner(uid);
+    }
+
+    // Resto de config persistente del dueño
+    match /barbers/{uid}/config/{document=**} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Denegar el resto por defecto
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
