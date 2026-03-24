@@ -78,6 +78,15 @@ function doPost(e) {
       recipientEmail = clientEmail;
       htmlBody = getClientRescheduleEmail(clientName, barberName, oldDateStr, newDateStr, newTimeStr, newConfirmationUrl);
       Logger.log('Sending appointment_rescheduled to client: ' + recipientEmail);
+      
+    } else if (type === 'appointment_client_created') {
+      // Email AL CLIENTE notificando que su cita fue registrada exitosamente (Bug 3)
+      const businessName = payload.businessName || '';
+      const cancelUrl = payload.cancelUrl || '';
+      subject = 'Confirmación de Cita - ' + businessName;
+      recipientEmail = clientEmail;
+      htmlBody = getClientCreatedEmail(clientName, barberName, dateStr, timeStr, businessName, cancelUrl);
+      Logger.log('Sending appointment_client_created to client: ' + recipientEmail);
     }
     
     // Validar que tenemos recipient y body
@@ -158,7 +167,14 @@ function formatTimeToString(appointmentDate) {
   const hour = crDate.getUTCHours();
   const mins = ('0' + crDate.getUTCMinutes()).slice(-2);
   
-  return ('0' + hour).slice(-2) + ':' + mins;
+  const timeString = ('0' + hour).slice(-2) + ':' + mins;
+  
+  // Convertir a formato 12h con AM/PM
+  const [hours, minutes] = timeString.split(':')
+  const h = parseInt(hours)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return `${h12}:${minutes} ${ampm}`
 }
 
 // ============================================
@@ -408,6 +424,48 @@ function getClientRejectedEmail(clientName, barberName, date, time) {
     + '<p style="color: #555; font-size: 13px; line-height: 1.6; margin: 15px 0;">'
     + 'Te invitamos a intentar reservar en otra fecha u hora.'
     + '</p>'
+    + '<p style="color: #999; font-size: 12px; text-align: center; margin: 20px 0 0 0;">'
+    + 'Este es un correo automatico. No respondas a este mensaje.'
+    + '</p>'
+    + '</div>'
+    + '</div>';
+  return html;
+}
+
+function getClientCreatedEmail(clientName, barberName, date, time, businessName, cancelUrl) {
+  const html = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">'
+    + '<div style="background: #34c759; color: white; padding: 30px 20px; text-align: center;">'
+    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">Qcut</h1>'
+    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Sistema de Citas para Barberias</p>'
+    + '</div>'
+    + '<div style="background: white; padding: 30px 20px; border: 1px solid #e5e5e5;">'
+    + '<h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">¡Tu Cita ha sido Registrada!</h2>'
+    + '<p style="color: #555; font-size: 14px; line-height: 1.6; margin: 0 0 15px 0;">'
+    + 'Hola ' + clientName + ','
+    + '</p>'
+    + '<p style="color: #555; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">'
+    + 'Tu cita en <strong>' + businessName + '</strong> con ' + barberName + ' ha sido procesada exitosamente.'
+    + '</p>'
+    + '<div style="background: #f5f5f5; padding: 15px; border-radius: 4px; border-left: 4px solid #34c759; margin: 20px 0;">'
+    + '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">'
+    + '<tr><td style="padding: 5px 0; color: #666; font-weight: bold;">Barbería:</td>'
+    + '<td style="padding: 5px 0; color: #333; text-align: right;">' + businessName + '</td></tr>'
+    + '<tr><td style="padding: 5px 0; color: #666; font-weight: bold;">Barbero:</td>'
+    + '<td style="padding: 5px 0; color: #333; text-align: right;">' + barberName + '</td></tr>'
+    + '<tr><td style="padding: 5px 0; color: #666; font-weight: bold;">Fecha:</td>'
+    + '<td style="padding: 5px 0; color: #333; text-align: right;">' + date + '</td></tr>'
+    + '<tr><td style="padding: 5px 0; color: #666; font-weight: bold;">Hora:</td>'
+    + '<td style="padding: 5px 0; color: #333; text-align: right;">' + time + '</td></tr>'
+    + '</table>'
+    + '</div>'
+    + '<p style="color: #555; font-size: 13px; line-height: 1.6; margin: 15px 0;">'
+    + 'Si necesitas cancelar, puedes hacerlo en cualquier momento desde el siguiente enlace:'
+    + '</p>'
+    + '<div style="text-align: center; margin: 30px 0;">'
+    + '<a href="' + cancelUrl + '" style="background: #e5e5e5; color: #333; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block; font-size: 14px;">'
+    + 'Gestionar mi Cita'
+    + '</a>'
+    + '</div>'
     + '<p style="color: #999; font-size: 12px; text-align: center; margin: 20px 0 0 0;">'
     + 'Este es un correo automatico. No respondas a este mensaje.'
     + '</p>'

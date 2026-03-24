@@ -206,7 +206,14 @@ const BookingPage = () => {
         if (block.barberId !== selectedBarberId) return false;
         if (!isSameDay(new Date(block.fecha), selectedDate)) return false;
         if (block.tipo === 'dia_completo') return true;
-        return timeString >= block.horaInicio && timeString < block.horaFin;
+        
+        // Calcular fin de este slot para detectar solapamientos parciales
+        const slotEndMinutes = minutes + duration;
+        const h = Math.floor(slotEndMinutes / 60);
+        const m = slotEndMinutes % 60;
+        const slotEndString = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        
+        return timeString < block.horaFin && slotEndString > block.horaInicio;
       });
 
       const isLunchBreak = lunchEnabled && lunchStart && lunchEnd
@@ -301,8 +308,7 @@ const BookingPage = () => {
     if (result.success) {
       const isAutoAccepted = selectedBarber?.autoAccept || false;
 
-      // Notificar solo al barbero sobre nueva solicitud de cita.
-      // La confirmación del cliente se solicitará manualmente desde Dashboard > Confirmaciones.
+      // Notificar al barbero sobre nueva solicitud o cita confirmada
       const hasValidBarberEmail = appointmentData.barberEmail && appointmentData.barberEmail.trim() !== '';
       if (hasValidBarberEmail) {
         const barberPayload = {
@@ -318,6 +324,25 @@ const BookingPage = () => {
           method: 'POST',
           body: JSON.stringify(barberPayload)
         }).catch(error => console.error('Error notificando barbero:', error));
+      }
+
+      // CAMBIO BUG 3: Notificar al cliente con su confirmación y link de cancelación
+      const hasValidClientEmail = appointmentData.clientEmail && appointmentData.clientEmail.trim() !== '';
+      if (hasValidClientEmail) {
+        const clientPayload = {
+          type: 'appointment_client_created',
+          clientEmail: appointmentData.clientEmail,
+          clientName: appointmentData.clientName,
+          barberName: appointmentData.barberName,
+          businessName: barberData?.name || 'Qcut Barbería',
+          cancelUrl: window.location.href, // Link a la misma página de booking donde pueden buscar su número para cancelar
+          appointmentDate: appointmentDate.toISOString()
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify(clientPayload)
+        }).catch(error => console.error('Error notificando cliente:', error));
       }
 
       setIsAutoAccepted(isAutoAccepted);
