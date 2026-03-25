@@ -223,14 +223,35 @@ export const subscribeToAppointmentsRealtime = (uid, startDate, endDate, barberI
 /** Crea una nueva cita */
 export const createAppointment = async (uid, appointmentData) => {
   try {
+    const barberDataRef = doc(db, 'barbers', uid, 'config', 'barberdata');
+    const barberDataSnap = await getDoc(barberDataRef);
+
+    let autoAccept = false;
+    if (barberDataSnap.exists()) {
+      const barberData = barberDataSnap.data() || {};
+
+      if (appointmentData.barberId && Array.isArray(barberData.barbers)) {
+        const selectedBarber = barberData.barbers.find((barber) => barber.id === appointmentData.barberId);
+        if (typeof selectedBarber?.autoAccept === 'boolean') {
+          autoAccept = selectedBarber.autoAccept;
+        } else if (typeof barberData.autoAccept === 'boolean') {
+          autoAccept = barberData.autoAccept;
+        }
+      } else if (typeof barberData.autoAccept === 'boolean') {
+        autoAccept = barberData.autoAccept;
+      }
+    }
+
+    const resolvedStatus = autoAccept ? 'confirmed' : 'pending';
     const appointmentsRef = collection(db, 'barbers', uid, 'appointments');
     const docRef = await addDoc(appointmentsRef, {
       ...appointmentData,
+      status: resolvedStatus,
       date: Timestamp.fromDate(appointmentData.date),
       createdAt: Timestamp.now(),
       reminderSent: false // CAMBIO 4: para recordatorio WhatsApp
     });
-    return { success: true, id: docRef.id };
+    return { success: true, id: docRef.id, status: resolvedStatus, autoAccept };
   } catch (error) {
     return { success: false, error: error.message };
   }

@@ -171,6 +171,9 @@ const BookingPage = () => {
     if (!selectedDate || !scheduleConfig || !selectedBarberId) return [];
 
     const selectedSchedule = barberSchedules[selectedBarberId] || scheduleConfig;
+    const now = new Date();
+    const selectedDateOnly = new Date(selectedDate);
+    const isToday = selectedDateOnly.toDateString() === now.toDateString();
 
     const slots = [];
     const [openHour, openMinute] = (selectedSchedule.openingTime || '09:00').split(':').map(Number);
@@ -192,6 +195,10 @@ const BookingPage = () => {
       // Verificar si este slot está ocupado
       const slotDate = new Date(selectedDate);
       slotDate.setHours(hour, minute, 0, 0);
+
+      if (isToday && slotDate <= now) {
+        continue;
+      }
       
       const isOccupied = existingAppointments.some(apt => {
         const fallbackBarberId = barberData?.barbers?.[0]?.id || 'barber-1';
@@ -296,7 +303,6 @@ const BookingPage = () => {
       clientEmail: formData.clientEmail.trim(),
       notes: formData.notes.trim(),
       date: appointmentDate,
-      status: selectedBarber?.autoAccept ? 'confirmed' : 'pending',
       barberId: selectedBarberId,
       barberName: selectedBarber?.name || 'Barbero',
       // Usar email del barbero individual, si no existe usar del negocio
@@ -306,7 +312,7 @@ const BookingPage = () => {
     const result = await createAppointment(businessId, appointmentData);
 
     if (result.success) {
-      const isAutoAccepted = selectedBarber?.autoAccept || false;
+      const isAutoAccepted = result.autoAccept === true || result.status === 'confirmed';
 
       // Notificar al barbero sobre nueva solicitud o cita confirmada
       const hasValidBarberEmail = appointmentData.barberEmail && appointmentData.barberEmail.trim() !== '';
