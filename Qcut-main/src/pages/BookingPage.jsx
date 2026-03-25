@@ -174,6 +174,14 @@ const BookingPage = () => {
     const now = new Date();
     const selectedDateOnly = new Date(selectedDate);
     const isToday = selectedDateOnly.toDateString() === now.toDateString();
+    const fallbackBarberId = barberData?.barbers?.[0]?.id || 'barber-1';
+
+    const parseTimeToMinutes = (timeValue) => {
+      if (!timeValue || typeof timeValue !== 'string') return null;
+      const [h, m] = timeValue.split(':').map(Number);
+      if (Number.isNaN(h) || Number.isNaN(m)) return null;
+      return h * 60 + m;
+    };
 
     const slots = [];
     const [openHour, openMinute] = (selectedSchedule.openingTime || '09:00').split(':').map(Number);
@@ -183,14 +191,39 @@ const BookingPage = () => {
     const closingMinutes = closeHour * 60 + closeMinute;
     const duration = selectedSchedule.appointmentDuration || 30;
     const lunchEnabled = !!selectedSchedule.lunchBreakEnabled;
-    const lunchStart = selectedSchedule.lunchStart;
-    const lunchEnd = selectedSchedule.lunchEnd;
+    const lunchStartMinutes = parseTimeToMinutes(selectedSchedule.lunchStart);
+    const lunchEndMinutes = parseTimeToMinutes(selectedSchedule.lunchEnd);
+
+    const occupiedTimes = new Set(
+      existingAppointments
+        .filter((apt) => {
+          const appointmentBarberId = apt.barberId || fallbackBarberId;
+          return appointmentBarberId === selectedBarberId;
+        })
+        .map((apt) => format(apt.date, 'HH:mm'))
+    );
+
+    const relevantBlocks = allBlocks
+      .filter((block) => block.barberId === selectedBarberId)
+      .filter((block) => isSameDay(new Date(block.fecha), selectedDate))
+      .map((block) => {
+        if (block.tipo === 'dia_completo') {
+          return { fullDay: true };
+        }
+
+        return {
+          fullDay: false,
+          startMinutes: parseTimeToMinutes(block.horaInicio),
+          endMinutes: parseTimeToMinutes(block.horaFin)
+        };
+      });
 
     // Generar todos los slots posibles
     for (let minutes = openingMinutes; minutes < closingMinutes; minutes += duration) {
       const hour = Math.floor(minutes / 60);
       const minute = minutes % 60;
       const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      const slotEndMinutes = minutes + duration;
       
       // Verificar si este slot está ocupado
       const slotDate = new Date(selectedDate);
@@ -199,32 +232,18 @@ const BookingPage = () => {
       if (isToday && slotDate <= now) {
         continue;
       }
-      
-      const isOccupied = existingAppointments.some(apt => {
-        const fallbackBarberId = barberData?.barbers?.[0]?.id || 'barber-1';
-        const appointmentBarberId = apt.barberId || fallbackBarberId;
-        if (appointmentBarberId !== selectedBarberId) return false;
-        const aptTime = format(apt.date, 'HH:mm');
-        return aptTime === timeString;
-      });
+
+      const isOccupied = occupiedTimes.has(timeString);
 
       // CAMBIO 3: Verificar si el slot está bloqueado (modelo actual por fecha+barberId)
-      const isBlocked = allBlocks.some(block => {
-        if (block.barberId !== selectedBarberId) return false;
-        if (!isSameDay(new Date(block.fecha), selectedDate)) return false;
-        if (block.tipo === 'dia_completo') return true;
-        
-        // Calcular fin de este slot para detectar solapamientos parciales
-        const slotEndMinutes = minutes + duration;
-        const h = Math.floor(slotEndMinutes / 60);
-        const m = slotEndMinutes % 60;
-        const slotEndString = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-        
-        return timeString < block.horaFin && slotEndString > block.horaInicio;
+      const isBlocked = relevantBlocks.some((block) => {
+        if (block.fullDay) return true;
+        if (block.startMinutes === null || block.endMinutes === null) return false;
+        return minutes < block.endMinutes && slotEndMinutes > block.startMinutes;
       });
 
-      const isLunchBreak = lunchEnabled && lunchStart && lunchEnd
-        ? timeString >= lunchStart && timeString < lunchEnd
+      const isLunchBreak = lunchEnabled && lunchStartMinutes !== null && lunchEndMinutes !== null
+        ? minutes >= lunchStartMinutes && minutes < lunchEndMinutes
         : false;
 
       slots.push({
