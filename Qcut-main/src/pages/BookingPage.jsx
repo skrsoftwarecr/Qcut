@@ -647,13 +647,14 @@ const BookingPage = () => {
 
                 <div>
                   <label htmlFor="clientEmail" className="label">
-                    Email (opcional)
+                    Email *
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-secondary w-5 h-5" />
                     <input
                       type="email"
                       id="clientEmail"
+                      required
                       value={formData.clientEmail}
                       onChange={(e) => setFormData(prev => ({ ...prev, clientEmail: e.target.value }))}
                       className={`input pl-11 ${errors.clientEmail ? 'input-error' : ''}`}

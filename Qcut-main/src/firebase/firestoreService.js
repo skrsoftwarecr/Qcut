@@ -317,18 +317,42 @@ export const cancelAppointmentByClient = async (uid, appointmentId, appointmentD
  */
 export const getClientAppointmentsByPhone = async (uid, phone) => {
   try {
+    const rawPhone = (phone || '').trim();
+    if (!rawPhone) {
+      return { success: true, data: [] };
+    }
+
+    const digitsOnly = rawPhone.replace(/\D/g, '');
+    const candidates = Array.from(new Set([
+      rawPhone,
+      rawPhone.replace(/\s+/g, ''),
+      rawPhone.replace(/[\s\-()]/g, ''),
+      digitsOnly,
+      digitsOnly ? `+${digitsOnly}` : ''
+    ].filter(Boolean)));
+
     const ref = collection(db, 'barbers', uid, 'appointments');
-    const q = query(ref, where('clientPhone', '==', phone.trim()), orderBy('date', 'asc'));
-    const snapshot = await getDocs(q);
+    const snapshots = await Promise.all(
+      candidates.map((candidate) => getDocs(query(ref, where('clientPhone', '==', candidate), orderBy('date', 'asc'))))
+    );
+
     const now = new Date();
-    const appointments = [];
-    snapshot.forEach(d => {
-      const data = d.data();
-      const apt = { id: d.id, ...data, date: data.date.toDate() };
-      if ((apt.status === 'pending' || apt.status === 'confirmed') && apt.date > now) {
-        appointments.push(apt);
-      }
+    const appointmentsMap = new Map();
+
+    snapshots.forEach((snapshot) => {
+      snapshot.forEach((d) => {
+        if (appointmentsMap.has(d.id)) return;
+        const data = d.data();
+        const aptDate = data.date?.toDate ? data.date.toDate() : new Date(data.date);
+        const apt = { id: d.id, ...data, date: aptDate };
+        if ((apt.status === 'pending' || apt.status === 'confirmed') && apt.date > now) {
+          appointmentsMap.set(d.id, apt);
+        }
+      });
     });
+
+    const appointments = Array.from(appointmentsMap.values()).sort((a, b) => a.date - b.date);
+
     return { success: true, data: appointments };
   } catch (error) {
     return { success: false, error: error.message };

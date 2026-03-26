@@ -40,7 +40,7 @@ import { es } from 'date-fns/locale';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Dashboard = () => {
-  const { uid, effectiveUid, linkedBarberId, businessId, isAdmin, mustChangePassword, refreshUserProfile } = useAuth();
+  const { uid, user, effectiveUid, linkedBarberId, businessId, barberData, isAdmin, mustChangePassword, refreshUserProfile } = useAuth();
   const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycby3zwVNyOWyvvq4VNkscvNzqCvcvRpAjJAFdqmb4bi43r2ACJR5VPtSS9dJFz1VZeCq/exec';
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -78,6 +78,19 @@ const Dashboard = () => {
   });
   const [activityFeed, setActivityFeed] = useState([]);
   const processedNotificationIds = useRef(new Set());
+
+  const activeBarberId = useMemo(() => {
+    if (!isAdmin) {
+      return linkedBarberId || null;
+    }
+
+    const availableBarbers = barberData?.barbers || [];
+    const adminBarber = availableBarbers.find((barber) => barber.uid === uid)
+      || availableBarbers.find((barber) => (barber.email || '').toLowerCase() === (user?.email || '').toLowerCase());
+
+    // Admin must behave as a regular barber in appointments/confirmations views.
+    return adminBarber?.id || '__admin_without_barber_profile__';
+  }, [isAdmin, linkedBarberId, barberData, uid, user]);
 
   // Calcular rango de fechas según filtro
   const dateRange = useMemo(() => {
@@ -121,11 +134,10 @@ const Dashboard = () => {
     return dateRange;
   }, [viewMode, confirmationDateFilter, dateRange]);
 
-  // Cargar citas — CAMBIO 2: filtra por barberId si el usuario es un barbero
+  // Cargar citas filtradas por el barbero activo (incluye al admin como barbero)
   const loadAppointments = useCallback(async () => {
     setLoading(true);
-    const filterBarberId = isAdmin ? null : linkedBarberId;
-    const result = await getAppointments(effectiveUid, activeDateRange.start, activeDateRange.end, filterBarberId);
+    const result = await getAppointments(effectiveUid, activeDateRange.start, activeDateRange.end, activeBarberId);
     
     if (result.success) {
       setAppointments(result.data);
@@ -134,19 +146,18 @@ const Dashboard = () => {
     }
     
     setLoading(false);
-  }, [effectiveUid, activeDateRange, isAdmin, linkedBarberId]);
+  }, [effectiveUid, activeDateRange, activeBarberId]);
 
   useEffect(() => {
     if (!effectiveUid) return;
 
     setLoading(true);
-    const filterBarberId = isAdmin ? null : linkedBarberId;
 
     const unsubscribe = subscribeToAppointmentsRealtime(
       effectiveUid,
       activeDateRange.start,
       activeDateRange.end,
-      filterBarberId,
+      activeBarberId,
       (data) => {
         setAppointments(data);
         setLoading(false);
@@ -158,7 +169,7 @@ const Dashboard = () => {
     );
 
     return () => unsubscribe();
-  }, [effectiveUid, isAdmin, linkedBarberId, activeDateRange]);
+  }, [effectiveUid, activeDateRange, activeBarberId]);
 
   useEffect(() => {
     if (viewMode === 'confirmations' && !confirmationDateFilter) {
@@ -446,12 +457,12 @@ const Dashboard = () => {
             clientEmail: appointment.clientEmail,
             clientName: appointment.clientName,
             barberName: appointment.barberName,
+            clientPhone: appointment.clientPhone,
             oldDate: appointment.date.toISOString(),
-            newDate: new Date(`${newDate}T${newTime}`).toISOString(),
-            confirmationLink: result.newConfirmationUrl
+            newDate: new Date(`${newDate}T${newTime}`).toISOString()
           };
           
-          await sendRescheduleEmailViaGAS(reschedulePayload);
+          await sendRescheduleEmailViaGAS(reschedulePayload, result.newConfirmationUrl);
         }
         
         toast.success('Cita reprogramada y correo enviado');
