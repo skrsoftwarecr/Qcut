@@ -1,4 +1,4 @@
-﻿rules_version = '2';
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -85,20 +85,12 @@ service cloud.firestore {
         );
     }
 
-    // 3a) Lectura de citas via collectionGroup (necesaria para buscar por confirmationToken)
-    match /{path=**}/appointments/{appointment} {
-      allow read: if true;
-    }
-
-    // 3) Citas
+    // 3) Citas — lectura/escritura solo miembros del negocio; reserva pública solo create.
+    // Flujos públicos (disponibilidad, token de confirmación, cancel por teléfono) vía Cloud Functions.
     match /barbers/{uid}/appointments/{appointment} {
-      allow read: if true;
+      allow read: if isBusinessMember(uid);
       allow create: if isValidPublicAppointment();
-
-      // Regla temporalmente abierta para descartar bloqueos de permisos
-      // en confirmacion por enlace y solicitudes de email.
-      allow update: if true;
-
+      allow update: if isBusinessMember(uid);
       allow delete: if isAdminOfBusiness(uid);
     }
 
@@ -124,9 +116,9 @@ service cloud.firestore {
         );
     }
 
-    // 5) Notificaciones
+    // 5) Notificaciones (creación solo desde cuentas del negocio; público usa Functions)
     match /barbers/{uid}/notifications/{notifId} {
-      allow create: if true;
+      allow create: if isBusinessMember(uid);
       allow read, update, delete: if isBusinessMember(uid);
     }
 

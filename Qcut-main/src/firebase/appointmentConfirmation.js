@@ -1,28 +1,16 @@
-﻿import {
+import {
   doc,
   getDoc,
   updateDoc,
-  collection,
   collectionGroup,
   getDocs,
-  query,
-  where,
-  Timestamp,
-  addDoc
+  Timestamp
 } from 'firebase/firestore';
 import { db } from './config';
+import { callHttps } from './functionsClient';
+import { generateConfirmationToken } from '../utils/confirmationToken';
 
 // ── SISTEMA DE CONFIRMACION DE CITAS ────────────────────────────────────────
-
-/** Genera un token unico para confirmacion de cita */
-const generateConfirmationToken = () => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  let token = '';
-  for (let i = 0; i < 32; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return token;
-};
 
 /** Calcula fecha de expiracion (14 dias desde ahora) */
 const getConfirmationTokenExpiry = () => {
@@ -149,121 +137,49 @@ export const recordEmailError = async (uid, appointmentId, errorMessage) => {
   }
 };
 
-/** Obtiene cita por token de confirmacion para validar */
+/** Obtiene cita por token de confirmacion para validar (Cloud Function; no expone collectionGroup) */
 export const getAppointmentByConfirmationToken = async (token) => {
   try {
-    const snapshot = await getDocs(
-      query(
-        collectionGroup(db, 'appointments'),
-        where('confirmationToken', '==', token.trim())
-      )
-    );
-
-    if (snapshot.empty) {
-      return { success: false, error: 'Token no encontrado o invalido' };
+    const result = await callHttps('appointmentGetByToken', { token: token.trim() });
+    if (!result.success) {
+      return { success: false, error: result.error || 'Token no válido' };
     }
-
-    const docSnap = snapshot.docs[0];
-    const data = docSnap.data();
-    const businessId = docSnap.ref.parent?.parent?.id;
-
-    // Validar expiracion del token
-    if (data.confirmationTokenExpiry) {
-      const expiry = data.confirmationTokenExpiry.toDate();
-      if (new Date() > expiry) {
-        return { success: false, error: 'El enlace de confirmacion ha expirado. Por favor, solicita uno nuevo.' };
-      }
-    }
-
-    // Si ya fue confirmada o cancelada
-    if (data.confirmationStatus === 'confirmed') {
-      return { success: false, error: 'Esta cita ya ha sido confirmada.' };
-    }
-    if (data.confirmationStatus === 'cancelled' || data.status === 'cancelled') {
-      return { success: false, error: 'Esta cita ya fue cancelada.' };
-    }
-
+    const d = result.data;
     return {
       success: true,
       data: {
-        ...data,
-        id: docSnap.id,
-        businessId,
-        date: data.date?.toDate ? data.date.toDate() : new Date(data.date)
+        ...d,
+        date: typeof d.date === 'string' ? new Date(d.date) : d.date
       }
     };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || 'Error al cargar la cita' };
   }
 };
 
-/** Confirma una cita usando el token */
+/** Confirma una cita usando el token (Cloud Function) */
 export const confirmAppointmentByToken = async (token) => {
   try {
-    const appointmentResult = await getAppointmentByConfirmationToken(token);
-    if (!appointmentResult.success) {
-      return appointmentResult;
+    const result = await callHttps('appointmentConfirmByToken', { token: token.trim() });
+    if (!result.success) {
+      return { success: false, error: result.error || 'No se pudo confirmar' };
     }
-
-    const { id, businessId, clientName, clientPhone, barberName, barberId, date } = appointmentResult.data;
-
-    await updateDoc(doc(db, 'barbers', businessId, 'appointments', id), {
-      confirmationStatus: 'confirmed',
-      confirmedAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
-    });
-
-    await addDoc(collection(db, 'barbers', businessId, 'notifications'), {
-      type: 'appointment_confirmed_by_client',
-      appointmentId: id,
-      clientName: clientName || 'Cliente',
-      clientPhone: clientPhone || '',
-      barberName: barberName || '',
-      barberId: barberId || '',
-      appointmentDate: date instanceof Date ? Timestamp.fromDate(date) : date,
-      read: false,
-      createdAt: Timestamp.now()
-    });
-
-    return { success: true, appointmentId: id, businessId };
+    return { success: true, appointmentId: result.appointmentId, businessId: result.businessId };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || 'Error al confirmar' };
   }
 };
 
-/** Cancela una cita desde el enlace del cliente usando el token */
+/** Cancela una cita desde el enlace del cliente usando el token (Cloud Function) */
 export const cancelAppointmentByToken = async (token) => {
   try {
-    const appointmentResult = await getAppointmentByConfirmationToken(token);
-    if (!appointmentResult.success) {
-      return appointmentResult;
+    const result = await callHttps('appointmentCancelByToken', { token: token.trim() });
+    if (!result.success) {
+      return { success: false, error: result.error || 'No se pudo cancelar' };
     }
-
-    const { id, businessId, clientName, clientPhone, barberName, barberId, date } = appointmentResult.data;
-
-    await updateDoc(doc(db, 'barbers', businessId, 'appointments', id), {
-      status: 'cancelled',
-      confirmationStatus: 'cancelled',
-      cancelledAt: Timestamp.now(),
-      cancelledBy: 'client',
-      updatedAt: Timestamp.now()
-    });
-
-    await addDoc(collection(db, 'barbers', businessId, 'notifications'), {
-      type: 'appointment_cancelled_by_client',
-      appointmentId: id,
-      clientName: clientName || 'Cliente',
-      clientPhone: clientPhone || '',
-      barberName: barberName || '',
-      barberId: barberId || '',
-      appointmentDate: date instanceof Date ? Timestamp.fromDate(date) : date,
-      read: false,
-      createdAt: Timestamp.now()
-    });
-
-    return { success: true, appointmentId: id, businessId };
+    return { success: true, appointmentId: result.appointmentId, businessId: result.businessId };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || 'Error al cancelar' };
   }
 };
 

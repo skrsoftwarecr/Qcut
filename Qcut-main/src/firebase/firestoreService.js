@@ -16,6 +16,7 @@ import {
   addDoc
 } from 'firebase/firestore';
 import { db } from './config';
+import { callHttps } from './functionsClient';
 
 /** Obtiene el perfil de usuario (rol, barberId, businessId) */
 export const getUserProfile = async (uid) => {
@@ -264,27 +265,11 @@ export const deleteAppointment = async (uid, appointmentId) => {
  */
 export const cancelAppointmentByClient = async (uid, appointmentId, appointmentData) => {
   try {
-    await updateDoc(doc(db, 'barbers', uid, 'appointments', appointmentId), {
-      status: 'cancelled',
-      cancelledBy: 'client',
-      cancelledAt: Timestamp.now()
-    });
-
-    // Notificación push en Firestore para el barbero
-    await addDoc(collection(db, 'barbers', uid, 'notifications'), {
-      type: 'appointment_cancelled_by_client',
+    await callHttps('publicCancelAppointment', {
+      businessId: uid,
       appointmentId,
-      clientName: appointmentData.clientName || 'Cliente',
-      clientPhone: appointmentData.clientPhone || '',
-      barberName: appointmentData.barberName || '',
-      barberId: appointmentData.barberId || '',
-      appointmentDate: appointmentData.date instanceof Date
-        ? Timestamp.fromDate(appointmentData.date)
-        : appointmentData.date,
-      read: false,
-      createdAt: Timestamp.now()
+      phone: (appointmentData.clientPhone || '').trim()
     });
-
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -296,18 +281,14 @@ export const cancelAppointmentByClient = async (uid, appointmentId, appointmentD
  */
 export const getClientAppointmentsByPhone = async (uid, phone) => {
   try {
-    const ref = collection(db, 'barbers', uid, 'appointments');
-    const q = query(ref, where('clientPhone', '==', phone.trim()), orderBy('date', 'asc'));
-    const snapshot = await getDocs(q);
-    const now = new Date();
-    const appointments = [];
-    snapshot.forEach(d => {
-      const data = d.data();
-      const apt = { id: d.id, ...data, date: data.date.toDate() };
-      if ((apt.status === 'pending' || apt.status === 'confirmed') && apt.date > now) {
-        appointments.push(apt);
-      }
+    const { appointments: raw } = await callHttps('publicGetAppointmentsByPhone', {
+      businessId: uid,
+      phone: phone.trim()
     });
+    const appointments = (raw || []).map((apt) => ({
+      ...apt,
+      date: typeof apt.date === 'string' ? new Date(apt.date) : apt.date
+    }));
     return { success: true, data: appointments };
   } catch (error) {
     return { success: false, error: error.message };
@@ -317,19 +298,19 @@ export const getClientAppointmentsByPhone = async (uid, phone) => {
 /** Obtiene citas para una fecha específica (página pública) */
 export const getAppointmentsByDate = async (uid, date) => {
   try {
-    const startOfDay = new Date(date); startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date); endOfDay.setHours(23, 59, 59, 999);
-    const appointmentsRef = collection(db, 'barbers', uid, 'appointments');
-    const q = query(
-      appointmentsRef,
-      where('date', '>=', Timestamp.fromDate(startOfDay)),
-      where('date', '<=', Timestamp.fromDate(endOfDay))
-    );
-    const querySnapshot = await getDocs(q);
-    const appointments = [];
-    querySnapshot.forEach((d) => {
-      appointments.push({ id: d.id, ...d.data(), date: d.data().date.toDate() });
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    const { appointments: raw } = await callHttps('publicGetAppointmentsForDay', {
+      businessId: uid,
+      startMs: startOfDay.getTime(),
+      endMs: endOfDay.getTime()
     });
+    const appointments = (raw || []).map((d) => ({
+      ...d,
+      date: typeof d.date === 'string' ? new Date(d.date) : d.date
+    }));
     return { success: true, data: appointments };
   } catch (error) {
     return { success: false, error: error.message };

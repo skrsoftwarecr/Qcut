@@ -131,13 +131,13 @@ export async function handler(event) {
 
     if (!emailApiKey) {
       console.warn('EMAIL_API_KEY not configured. Email would be sent to:', barberEmail);
-      return { 
-        statusCode: 200, 
-        body: JSON.stringify({ 
-          success: true, 
-          message: 'Email API not configured (development mode)',
-          wouldSendTo: barberEmail 
-        }) 
+      return {
+        statusCode: 503,
+        body: JSON.stringify({
+          success: false,
+          error: 'Email API not configured',
+          wouldSendTo: barberEmail
+        })
       };
     }
 
@@ -186,18 +186,14 @@ export async function handler(event) {
       };
     }
 
-    // Por defecto, log en consola (modo desarrollo)
-    console.log('📧 Email would be sent:');
-    console.log('To:', barberEmail);
-    console.log('Subject:', emailSubject);
-    
-    return { 
-      statusCode: 200, 
-      body: JSON.stringify({ 
-        success: true, 
-        message: 'Email processing complete',
-        recipient: barberEmail 
-      }) 
+    console.warn('EMAIL_SERVICE not configured to send (no matching branch after API key check)');
+    return {
+      statusCode: 501,
+      body: JSON.stringify({
+        success: false,
+        error: 'Email service not configured (set EMAIL_SERVICE=resend or implement send branch)',
+        recipient: barberEmail
+      })
     };
 
   } catch (error) {

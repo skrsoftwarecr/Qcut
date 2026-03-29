@@ -1,0 +1,44 @@
+# CI para rama de producción Netlify (feature/user-account-management) y main.
+# Tras merge a la rama de deploy, Netlify solo debe recibir código que ya pasó estos checks.
+name: CI
+
+on:
+  push:
+    branches:
+      - feature/user-account-management
+      - main
+  pull_request:
+    branches:
+      - feature/user-account-management
+      - main
+
+defaults:
+  run:
+    working-directory: Qcut-main
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: Qcut-main/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm run test -- --run
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: E2E smoke
+        run: npm run test:e2e

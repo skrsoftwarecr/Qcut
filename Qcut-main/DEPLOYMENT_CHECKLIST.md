@@ -40,6 +40,8 @@ npm run build
 - [ ] Reglas de Firestore aplicadas para `barbers/{uid}`
 - [ ] Documento inicial creado en `barbers/{uid}/config/barberdata`
 - [ ] Verificado acceso público a `/book/{uid}`
+- [ ] **Cloud Functions** desplegadas (`firebase deploy --only functions`): flujo público de reservas y confirmación por token depende de ellas
+- [ ] Variable `VITE_FIREBASE_FUNCTIONS_REGION` alineada con la región de despliegue de Functions (p. ej. `us-central1`)
 
 ## 🚀 Deployment en Netlify
 
