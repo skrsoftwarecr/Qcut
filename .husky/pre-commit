@@ -1,6 +1,30 @@
 #!/usr/bin/env sh
-echo "🚨 Ejecutando ESLint antes de commit..."
+
+echo "======================================================="
+echo "🛡️ Qcut Security Check (Pre-Commit)"
+echo "======================================================="
+
+echo "🚨 1. Ejecutando ESLint (Tolerancia Cero)..."
 if ! npm run lint; then
-  echo "❌ Lint falló. Commit/Push cancelado."
+  echo "❌ [BLOQUEO] ESLint detectó errores o warnings."
+  echo "👉 REGLA: Corrige los problemas importaciones huérfanas o asegúrate de usar '_err' en errores de catch no usados."
+  echo "⛔ Commit Cancelado."
   exit 1
 fi
+
+echo "🧪 2. Ejecutando Pruebas Unitarias/Integración (Frontend)..."
+if ! npm run test -- --run; then
+  echo "❌ [BLOQUEO] Las pruebas del Frontend fallaron."
+  echo "👉 REGLA: Verifica la configuración y si faltan variables de entorno de Firebase (ej. auth/invalid-api-key)."
+  echo "⛔ Commit Cancelado."
+  exit 1
+fi
+
+echo "🧪 3. Ejecutando Pruebas Backend (Cloud Functions)..."
+if ! (cd functions && npm test -- --run); then
+  echo "❌ [BLOQUEO] Las pruebas del Backend fallaron."
+  echo "⛔ Commit Cancelado."
+  exit 1
+fi
+
+echo "✅ [ÉXITO] Linter y pruebas completadas sin fallos. Commit autorizado."

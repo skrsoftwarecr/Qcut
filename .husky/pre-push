@@ -1,6 +1,29 @@
 #!/usr/bin/env sh
-echo "🚨 Ejecutando ESLint antes de push..."
+
+echo "======================================================="
+echo "🛡️ Qcut Security Check (Pre-Push)"
+echo "======================================================="
+
+echo "🚨 1. Ejecutando ESLint (Tolerancia Cero)..."
 if ! npm run lint; then
-  echo "❌ Lint falló. Commit/Push cancelado."
+  echo "❌ [BLOQUEO] ESLint detectó errores o warnings antes del push."
+  echo "⛔ Push abortado."
   exit 1
 fi
+
+echo "🧪 2. Ejecutando Pruebas Unitarias/Integración (Frontend)..."
+if ! npm run test -- --run; then
+  echo "❌ [BLOQUEO] Las pruebas del Frontend fallaron antes del push."
+  echo "👉 Asegúrate de tener correctas tus variables de entorno (Firebase)."
+  echo "⛔ Push abortado."
+  exit 1
+fi
+
+echo "🧪 3. Ejecutando Pruebas Backend (Cloud Functions)..."
+if ! (cd functions && npm test -- --run); then
+  echo "❌ [BLOQUEO] Las pruebas del Backend fallaron antes del push."
+  echo "⛔ Push abortado."
+  exit 1
+fi
+
+echo "✅ [ÉXITO] Todo en orden. Subiendo código..."
