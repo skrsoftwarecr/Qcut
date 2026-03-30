@@ -42,7 +42,6 @@ import LoadingSpinner from '../components/LoadingSpinner';
 const Settings = () => {
   const navigate = useNavigate();
   const { uid, effectiveUid, barberData, refreshBarberData, refreshUserProfile, isAdmin, linkedBarberId } = useAuth();
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   
@@ -150,7 +149,7 @@ const Settings = () => {
 
   useEffect(() => {
     loadBlocks();
-  }, [effectiveUid, isAdmin, linkedBarberId]);
+  }, [effectiveUid, isAdmin, linkedBarberId, loadBlocks]);
 
   useEffect(() => {
     const loadBarberSchedule = async () => {
@@ -405,15 +404,6 @@ const Settings = () => {
     navigate('/dashboard');
   };
 
-  // Toggle día laboral
-  const toggleWorkingDay = (day) => {
-    setSettings(prev => ({
-      ...prev,
-      workingDays: prev.workingDays.includes(day)
-        ? prev.workingDays.filter(d => d !== day)
-        : [...prev.workingDays, day].sort()
-    }));
-  };
 
   const toggleBarberWorkingDay = (day) => {
     setBarberSchedule(prev => ({

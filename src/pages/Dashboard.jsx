@@ -808,7 +808,7 @@ const Dashboard = () => {
                               } else {
                                 toast.error('Error: ' + result.error);
                               }
-                            } catch (_err) {
+                            } catch (error) {
                               toast.error('Error reenviando email');
                             }
                           }}
