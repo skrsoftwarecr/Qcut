@@ -7,8 +7,9 @@ const { Timestamp } = require('firebase-admin/firestore');
 function sanitizeString(str, maxLength = 256) {
   if (typeof str !== 'string') return '';
   return str
-    .replace(/<[^>]*>/g, '')           // Remove HTML tags
-    .replace(/[<>"'`]/g, '')           // Remove dangerous chars
+    .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, '') // Remove scripts
+    .replace(/<[^>]+>/g, '')                            // Remove HTML tags
+    .replace(/[<>"'`]/g, '')                            // Double safety
     .trim()
     .slice(0, maxLength);
 }

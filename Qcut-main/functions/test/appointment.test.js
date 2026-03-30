@@ -1,4 +1,3 @@
-const { describe, it, expect } = require('vitest');
 const { sanitizeString, sanitizePhone, assertBusinessId, docToPlain } = require('../appointmentPublic');
 
 // ══════════════════════════════════════════════════════════════
@@ -6,12 +5,13 @@ const { sanitizeString, sanitizePhone, assertBusinessId, docToPlain } = require(
 // ══════════════════════════════════════════════════════════════
 
 describe('sanitizeString', () => {
-  it('removes HTML tags', () => {
-    expect(sanitizeString('<script>alert("xss")</script>Hello')).toBe('scriptalert(xss)/scriptHello');
+  it('removes HTML tags and scripts', () => {
+    expect(sanitizeString('<script>alert("xss")</script>Hello')).toBe('Hello');
   });
 
-  it('removes dangerous characters', () => {
-    expect(sanitizeString('Hello <world> "test" `code`')).toBe('Hello world test code');
+  it('removes dangerous characters but preserves safe space', () => {
+    // <world> is treated as a potential HTML tag and removed, which is safer
+    expect(sanitizeString('Hello <world> "test" `code`')).toBe('Hello  test code');
   });
 
   it('trims whitespace', () => {
