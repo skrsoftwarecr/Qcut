@@ -44,8 +44,11 @@ service cloud.firestore {
 
     function isValidPublicAppointment() {
       return request.resource.data.clientName is string &&
+        request.resource.data.clientName.size() > 0 &&
+        request.resource.data.clientName.size() <= 128 &&
         request.resource.data.clientEmail is string &&
         request.resource.data.clientPhone is string &&
+        request.resource.data.clientPhone.size() >= 6 &&
         request.resource.data.date is timestamp &&
         request.resource.data.barberId is string &&
         request.resource.data.barberName is string &&
@@ -65,13 +68,13 @@ service cloud.firestore {
         request.resource.data.businessId == request.auth.uid;
     }
 
-    // 2) Configuracion general de la barberia
+    // 2) Configuracion general de la barberia (public read for booking page)
     match /barbers/{uid}/config/barberdata {
       allow read: if true;
       allow write: if isAdminOfBusiness(uid);
     }
 
-    // 2.1) Configuracion personal de horario por barbero
+    // 2.1) Configuracion personal de horario por barbero (public read for booking page)
     match /barbers/{uid}/barberConfigs/{barberId} {
       allow read: if true;
       allow write: if isAdminOfBusiness(uid)
@@ -94,7 +97,7 @@ service cloud.firestore {
       allow delete: if isAdminOfBusiness(uid);
     }
 
-    // 4) Bloqueos de horario
+    // 4) Bloqueos de horario (public read for booking calendar)
     match /barbers/{uid}/bloqueos/{blockId} {
       allow read: if true;
       allow create, update: if isAdminOfBusiness(uid)
@@ -116,13 +119,13 @@ service cloud.firestore {
         );
     }
 
-    // 5) Notificaciones (creación solo desde cuentas del negocio; público usa Functions)
+    // 5) Notificaciones (solo miembros del negocio)
     match /barbers/{uid}/notifications/{notifId} {
       allow create: if isBusinessMember(uid);
       allow read, update, delete: if isBusinessMember(uid);
     }
 
-    // 6) Otras configs del dueno
+    // 6) Otras configs del dueño
     match /barbers/{uid}/config/{document=**} {
       allow read, write: if isAdminOfBusiness(uid);
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -6,7 +6,6 @@ import { QRCodeSVG } from 'qrcode.react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
-  getBarberData,
   updateBarberData,
   getUserProfile,
   setUserProfile,
@@ -36,9 +35,7 @@ import {
   ToggleLeft,
   ToggleRight,
   ArrowLeft,
-  Ban,
-  AlertTriangle,
-  Shield
+  Ban
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 

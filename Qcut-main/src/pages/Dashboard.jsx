@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getAppointments,
@@ -35,13 +35,13 @@ import {
   XCircle,
   AlertCircle
 } from 'lucide-react';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, addDays, subDays, isSameDay } from 'date-fns';
+import { format, startOfDay, endOfDay, addDays, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Dashboard = () => {
   const { uid, effectiveUid, linkedBarberId, businessId, isAdmin, mustChangePassword, refreshUserProfile } = useAuth();
-  const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycby3zwVNyOWyvvq4VNkscvNzqCvcvRpAjJAFdqmb4bi43r2ACJR5VPtSS9dJFz1VZeCq/exec';
+  const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('today'); // today, week, biweekly, upcoming
@@ -461,7 +461,7 @@ const Dashboard = () => {
         toast.error('Error al reprogramar: ' + result.error);
       }
     } catch (err) {
-      console.error('Error:', err);
+      console.error('Error reprogramando:', err);
       toast.error('Error al reprogramar cita');
     } finally {
       setRescheduleModal(prev => ({ ...prev, loading: false }));
@@ -500,7 +500,7 @@ const Dashboard = () => {
         toast.error('Error al cancelar: ' + result.error);
       }
     } catch (err) {
-      console.error('Error:', err);
+      console.error('Error cancelando:', err);
       toast.error('Error al cancelar cita');
     } finally {
       setCancelModal(prev => ({ ...prev, loading: false }));
@@ -808,7 +808,7 @@ const Dashboard = () => {
                               } else {
                                 toast.error('Error: ' + result.error);
                               }
-                            } catch (err) {
+                            } catch (_err) {
                               toast.error('Error reenviando email');
                             }
                           }}

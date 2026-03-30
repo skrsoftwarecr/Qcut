@@ -40,7 +40,7 @@ const getConfirmationBaseUrl = () => {
 };
 
 const getGasWebhookUrl = () => {
-  return import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycby3zwVNyOWyvvq4VNkscvNzqCvcvRpAjJAFdqmb4bi43r2ACJR5VPtSS9dJFz1VZeCq/exec';
+  return import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
 };
 
 const resolveAppointmentRef = async (uid, appointmentId) => {

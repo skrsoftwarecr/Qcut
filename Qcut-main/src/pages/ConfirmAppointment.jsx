@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -38,7 +38,7 @@ const ConfirmAppointment = () => {
           setError(result.error || 'No se pudo cargar la cita');
           setAppointment(null);
         }
-      } catch (err) {
+      } catch (_err) {
         setError('Error al cargar la información: ' + err.message);
         setAppointment(null);
       } finally {
@@ -62,7 +62,7 @@ const ConfirmAppointment = () => {
         setError(result.error || 'No se pudo confirmar la cita');
         toast.error('Error al confirmar');
       }
-    } catch (err) {
+    } catch (_err) {
       setError('Error: ' + err.message);
       toast.error('Error en la confirmación');
     } finally {
@@ -83,7 +83,7 @@ const ConfirmAppointment = () => {
         setError(result.error || 'No se pudo cancelar la cita');
         toast.error('Error al cancelar');
       }
-    } catch (err) {
+    } catch (_err) {
       setError('Error: ' + err.message);
       toast.error('Error al cancelar');
     } finally {

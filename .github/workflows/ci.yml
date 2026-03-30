@@ -7,10 +7,12 @@ on:
     branches:
       - feature/user-account-management
       - main
+      - test
   pull_request:
     branches:
       - feature/user-account-management
       - main
+      - test
 
 defaults:
   run:
@@ -42,3 +44,4 @@ jobs:
 
       - name: E2E smoke
         run: npm run test:e2e
+# trigger

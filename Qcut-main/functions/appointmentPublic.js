@@ -1,6 +1,23 @@
 const { HttpsError } = require('firebase-functions/v2/https');
 const { Timestamp } = require('firebase-admin/firestore');
 
+// ── Input Sanitization ─────────────────────────────────────────────────────
+
+/** Strip HTML/script tags to prevent XSS stored in database */
+function sanitizeString(str, maxLength = 256) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/<[^>]*>/g, '')           // Remove HTML tags
+    .replace(/[<>"'`]/g, '')           // Remove dangerous chars
+    .trim()
+    .slice(0, maxLength);
+}
+
+function sanitizePhone(phone) {
+  if (typeof phone !== 'string') return '';
+  return phone.replace(/[^\d+\-() ]/g, '').trim().slice(0, 32);
+}
+
 function docToPlain(doc) {
   const data = doc.data();
   const plain = { id: doc.id };
@@ -16,7 +33,9 @@ function docToPlain(doc) {
 
 async function findAppointmentByConfirmationToken(db, token) {
   const trimmed = (token || '').trim();
-  if (!trimmed) return null;
+  if (!trimmed || trimmed.length > 64) return null;
+  // Prevent NoSQL injection: only allow alphanumeric tokens
+  if (!/^[A-Za-z0-9]+$/.test(trimmed)) return null;
   const snap = await db
     .collectionGroup('appointments')
     .where('confirmationToken', '==', trimmed)
@@ -32,7 +51,13 @@ function assertBusinessId(businessId) {
   if (!businessId || typeof businessId !== 'string' || businessId.length < 1 || businessId.length > 128) {
     throw new HttpsError('invalid-argument', 'businessId inválido');
   }
+  // Only allow alphanumeric and typical Firebase UID characters
+  if (!/^[a-zA-Z0-9_-]+$/.test(businessId)) {
+    throw new HttpsError('invalid-argument', 'businessId contiene caracteres no válidos');
+  }
 }
+
+// ── Public Endpoints ────────────────────────────────────────────────────────
 
 async function publicGetAppointmentsForDay(db, { businessId, startMs, endMs }) {
   assertBusinessId(businessId);
@@ -48,12 +73,21 @@ async function publicGetAppointmentsForDay(db, { businessId, startMs, endMs }) {
     .where('date', '>=', Timestamp.fromMillis(start))
     .where('date', '<=', Timestamp.fromMillis(end))
     .get();
-  return snap.docs.map((d) => docToPlain(d));
+  // Only return non-sensitive fields to public callers
+  return snap.docs.map((d) => {
+    const plain = docToPlain(d);
+    return {
+      id: plain.id,
+      date: plain.date,
+      barberId: plain.barberId,
+      status: plain.status
+    };
+  });
 }
 
 async function publicGetAppointmentsByPhone(db, { businessId, phone }) {
   assertBusinessId(businessId);
-  const p = (phone || '').trim();
+  const p = sanitizePhone(phone);
   if (!p || p.length < 6 || p.length > 32) {
     throw new HttpsError('invalid-argument', 'Teléfono inválido');
   }
@@ -78,9 +112,12 @@ async function publicGetAppointmentsByPhone(db, { businessId, phone }) {
 
 async function publicCancelAppointment(db, { businessId, appointmentId, phone }) {
   assertBusinessId(businessId);
-  const p = (phone || '').trim();
-  if (!appointmentId || !p) {
+  const p = sanitizePhone(phone);
+  if (!appointmentId || typeof appointmentId !== 'string' || !p) {
     throw new HttpsError('invalid-argument', 'Datos incompletos');
+  }
+  if (appointmentId.length > 128 || !/^[a-zA-Z0-9_-]+$/.test(appointmentId)) {
+    throw new HttpsError('invalid-argument', 'appointmentId inválido');
   }
   const ref = db.collection('barbers').doc(businessId).collection('appointments').doc(appointmentId);
   const docSnap = await ref.get();
@@ -88,8 +125,12 @@ async function publicCancelAppointment(db, { businessId, appointmentId, phone })
     throw new HttpsError('not-found', 'Cita no encontrada');
   }
   const data = docSnap.data();
-  if ((data.clientPhone || '').trim() !== p) {
+  if (sanitizePhone(data.clientPhone || '') !== p) {
     throw new HttpsError('permission-denied', 'El teléfono no coincide con la cita');
+  }
+  // Prevent double-cancel
+  if (data.status === 'cancelled') {
+    return { success: true, alreadyCancelled: true };
   }
   await ref.update({
     status: 'cancelled',
@@ -100,9 +141,9 @@ async function publicCancelAppointment(db, { businessId, appointmentId, phone })
   await db.collection('barbers').doc(businessId).collection('notifications').add({
     type: 'appointment_cancelled_by_client',
     appointmentId,
-    clientName: data.clientName || 'Cliente',
-    clientPhone: data.clientPhone || '',
-    barberName: data.barberName || '',
+    clientName: sanitizeString(data.clientName || 'Cliente', 128),
+    clientPhone: sanitizePhone(data.clientPhone || ''),
+    barberName: sanitizeString(data.barberName || '', 128),
     barberId: data.barberId || '',
     appointmentDate: data.date,
     read: false,
@@ -110,6 +151,8 @@ async function publicCancelAppointment(db, { businessId, appointmentId, phone })
   });
   return { success: true };
 }
+
+// ── Token-based Endpoints ───────────────────────────────────────────────────
 
 async function appointmentGetByToken(db, { token }) {
   const found = await findAppointmentByConfirmationToken(db, token);
@@ -133,13 +176,13 @@ async function appointmentGetByToken(db, { token }) {
   }
   const dateVal = data.date?.toDate ? data.date.toDate() : new Date(data.date);
   const payload = {
-    clientName: data.clientName,
-    clientPhone: data.clientPhone,
-    clientEmail: data.clientEmail,
-    barberName: data.barberName,
+    clientName: sanitizeString(data.clientName, 128),
+    clientPhone: sanitizePhone(data.clientPhone),
+    clientEmail: sanitizeString(data.clientEmail, 256),
+    barberName: sanitizeString(data.barberName, 128),
     barberId: data.barberId,
     status: data.status,
-    notes: data.notes,
+    notes: sanitizeString(data.notes, 500),
     confirmationStatus: data.confirmationStatus,
     id,
     businessId,
@@ -165,7 +208,7 @@ async function appointmentConfirmByToken(db, { token }) {
     }
   }
   if (data.confirmationStatus === 'confirmed') {
-    return { success: false, error: 'Esta cita ya ha sido confirmada.' };
+    return { success: true, appointmentId: id, businessId, alreadyConfirmed: true };
   }
   if (data.confirmationStatus === 'cancelled' || data.status === 'cancelled') {
     return { success: false, error: 'Esta cita ya fue cancelada.' };
@@ -179,9 +222,9 @@ async function appointmentConfirmByToken(db, { token }) {
   await db.collection('barbers').doc(businessId).collection('notifications').add({
     type: 'appointment_confirmed_by_client',
     appointmentId: id,
-    clientName: data.clientName || 'Cliente',
-    clientPhone: data.clientPhone || '',
-    barberName: data.barberName || '',
+    clientName: sanitizeString(data.clientName || 'Cliente', 128),
+    clientPhone: sanitizePhone(data.clientPhone || ''),
+    barberName: sanitizeString(data.barberName || '', 128),
     barberId: data.barberId || '',
     appointmentDate: dateVal instanceof Date ? Timestamp.fromDate(dateVal) : dateVal,
     read: false,
@@ -206,7 +249,7 @@ async function appointmentCancelByToken(db, { token }) {
     return { success: false, error: 'Esta cita ya ha sido confirmada.' };
   }
   if (data.confirmationStatus === 'cancelled' || data.status === 'cancelled') {
-    return { success: false, error: 'Esta cita ya fue cancelada.' };
+    return { success: true, appointmentId: id, businessId, alreadyCancelled: true };
   }
   const dateVal = data.date?.toDate ? data.date.toDate() : data.date;
   await ref.update({
@@ -219,9 +262,9 @@ async function appointmentCancelByToken(db, { token }) {
   await db.collection('barbers').doc(businessId).collection('notifications').add({
     type: 'appointment_cancelled_by_client',
     appointmentId: id,
-    clientName: data.clientName || 'Cliente',
-    clientPhone: data.clientPhone || '',
-    barberName: data.barberName || '',
+    clientName: sanitizeString(data.clientName || 'Cliente', 128),
+    clientPhone: sanitizePhone(data.clientPhone || ''),
+    barberName: sanitizeString(data.barberName || '', 128),
     barberId: data.barberId || '',
     appointmentDate: dateVal instanceof Date ? Timestamp.fromDate(dateVal) : dateVal,
     read: false,
@@ -236,5 +279,10 @@ module.exports = {
   publicCancelAppointment,
   appointmentGetByToken,
   appointmentConfirmByToken,
-  appointmentCancelByToken
+  appointmentCancelByToken,
+  docToPlain,
+  // Exported for tests
+  sanitizeString,
+  sanitizePhone,
+  assertBusinessId
 };

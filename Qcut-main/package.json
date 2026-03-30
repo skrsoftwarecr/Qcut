@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "lint": "eslint . --report-unused-disable-directives --max-warnings 200"
   },
   "dependencies": {
     "date-fns": "^3.0.0",
@@ -21,6 +22,8 @@
     "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
+    "@eslint/compat": "^2.0.3",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
@@ -28,6 +31,12 @@
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "^17.4.0",
     "jsdom": "^25.0.1",
     "playwright": "^1.58.2",
     "postcss": "^8.4.32",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   getBarberData,
@@ -21,8 +21,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  X,
-  AlertCircle
+  X
 } from 'lucide-react';
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -30,7 +29,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const BookingPage = () => {
   const { businessId } = useParams();
-  const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycby3zwVNyOWyvvq4VNkscvNzqCvcvRpAjJAFdqmb4bi43r2ACJR5VPtSS9dJFz1VZeCq/exec';
+  const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
   const [barberData, setBarberData] = useState(null);
   const [scheduleConfig, setScheduleConfig] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -151,7 +150,7 @@ const BookingPage = () => {
     const isDayBlocked = allBlocks.some(block => 
       block.barberId === selectedBarberId && 
       block.tipo === 'dia_completo' && 
-      isSameDay(new Date(block.fecha), date)
+      isSameDay(block.fecha, date)
     );
 
     if (isDayBlocked) return false;
@@ -204,7 +203,7 @@ const BookingPage = () => {
       // CAMBIO 3: Verificar si el slot está bloqueado (modelo actual por fecha+barberId)
       const isBlocked = allBlocks.some(block => {
         if (block.barberId !== selectedBarberId) return false;
-        if (!isSameDay(new Date(block.fecha), selectedDate)) return false;
+        if (!isSameDay(block.fecha, selectedDate)) return false;
         if (block.tipo === 'dia_completo') return true;
         
         // Calcular fin de este slot para detectar solapamientos parciales

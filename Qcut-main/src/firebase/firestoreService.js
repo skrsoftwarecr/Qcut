@@ -11,12 +11,12 @@ import {
   where,
   orderBy,
   onSnapshot,
-  limit,
   Timestamp,
   addDoc
 } from 'firebase/firestore';
 import { db } from './config';
 import { callHttps } from './functionsClient';
+import { normalizeDateToLocalNoon, parseDateStringToLocal } from '../utils/blockDateUtils';
 
 /** Obtiene el perfil de usuario (rol, barberId, businessId) */
 export const getUserProfile = async (uid) => {
@@ -446,11 +446,11 @@ export const getBarberBlocks = async (uid, barberId = null) => {
     const blocks = [];
     snapshot.forEach(d => {
       const data = d.data();
-      const fecha = data.fecha?.toDate ? data.fecha.toDate() : (data.fecha ? new Date(data.fecha) : new Date());
+      const normalizedFecha = normalizeDateToLocalNoon(data.fecha);
       blocks.push({ 
         id: d.id, 
         ...data, 
-        fecha
+        fecha: normalizedFecha
       });
     });
     
@@ -483,7 +483,7 @@ export const addBarberBlock = async (uid, blockData) => {
     const blocksRef = collection(db, 'barbers', uid, 'bloqueos');
     const docRef = await addDoc(blocksRef, {
       ...blockData,
-      fecha: Timestamp.fromDate(new Date(blockData.fecha)),
+      fecha: Timestamp.fromDate(parseDateStringToLocal(blockData.fecha)),
       createdAt: Timestamp.now()
     });
     return { success: true, id: docRef.id };
