@@ -50,14 +50,48 @@ service cloud.firestore {
         request.resource.data.clientPhone is string &&
         request.resource.data.clientPhone.size() >= 6 &&
         request.resource.data.date is timestamp &&
+        request.resource.data.time is string &&
         request.resource.data.barberId is string &&
         request.resource.data.barberName is string &&
+        request.resource.data.confirmationStatus is string &&
+        request.resource.data.confirmationToken is string &&
+        request.resource.data.confirmationTokenExpiry is timestamp &&
         (request.resource.data.status == 'pending' || request.resource.data.status == 'confirmed') &&
         hasOnlyKeys([
           'clientName', 'clientPhone', 'clientEmail', 'notes', 'date',
           'status', 'barberId', 'barberName', 'barberEmail', 'createdAt',
-          'updatedAt', 'reminderSent'
+          'updatedAt', 'reminderSent', 'time', 'confirmationStatus',
+          'confirmationToken', 'confirmationTokenExpiry'
         ]);
+    }
+
+    function isValidTokenBasedAppointmentUpdate() {
+      return !isSignedIn() &&
+        resource.data.confirmationToken is string &&
+        request.resource.data.confirmationToken == resource.data.confirmationToken &&
+        request.resource.data.clientName == resource.data.clientName &&
+        request.resource.data.clientPhone == resource.data.clientPhone &&
+        request.resource.data.clientEmail == resource.data.clientEmail &&
+        request.resource.data.notes == resource.data.notes &&
+        request.resource.data.date == resource.data.date &&
+        request.resource.data.time == resource.data.time &&
+        request.resource.data.barberId == resource.data.barberId &&
+        request.resource.data.barberName == resource.data.barberName &&
+        request.resource.data.barberEmail == resource.data.barberEmail &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.confirmationTokenExpiry == resource.data.confirmationTokenExpiry &&
+        request.resource.data.updatedAt is timestamp &&
+        (request.resource.data.reminderSent == resource.data.reminderSent ||
+          !(request.resource.data.reminderSent is bool) ||
+          !(resource.data.reminderSent is bool)) &&
+        (
+          (request.resource.data.confirmationStatus == 'confirmed' &&
+            request.resource.data.status == 'confirmed' &&
+            resource.data.status == 'confirmed' &&
+            (resource.data.confirmationStatus == 'pending' || resource.data.confirmationStatus == 'not_requested')) ||
+          (request.resource.data.confirmationStatus == 'cancelled' &&
+            request.resource.data.status == 'cancelled')
+        );
     }
 
     // 1) Perfil de usuario
@@ -88,12 +122,11 @@ service cloud.firestore {
         );
     }
 
-    // 3) Citas — lectura/escritura solo miembros del negocio; reserva pública solo create.
-    // Flujos públicos (disponibilidad, token de confirmación, cancel por teléfono) vía Cloud Functions.
+    // 3) Citas — lectura pública para disponibilidad en el formulario de citas.
     match /barbers/{uid}/appointments/{appointment} {
-      allow read: if isBusinessMember(uid);
+      allow read: if true;
       allow create: if isValidPublicAppointment();
-      allow update: if isBusinessMember(uid);
+      allow update: if isBusinessMember(uid) || isValidTokenBasedAppointmentUpdate();
       allow delete: if isAdminOfBusiness(uid);
     }
 

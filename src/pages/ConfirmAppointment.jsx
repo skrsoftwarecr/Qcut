@@ -11,6 +11,7 @@ const ConfirmAppointment = () => {
   const { token: routeToken } = useParams();
   const [searchParams] = useSearchParams();
   const token = routeToken || searchParams.get('token') || searchParams.get('t');
+  const businessId = searchParams.get('b') || searchParams.get('businessId') || '';
 
   const [appointment, setAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +31,7 @@ const ConfirmAppointment = () => {
       }
 
       try {
-        const result = await getAppointmentByConfirmationToken(token);
+        const result = await getAppointmentByConfirmationToken(token, businessId);
         if (result.success) {
           setAppointment(result.data);
           setError(null);
@@ -47,14 +48,14 @@ const ConfirmAppointment = () => {
     };
 
     loadAppointment();
-  }, [token]);
+  }, [token, businessId]);
 
   const handleConfirm = async () => {
     if (!token) return;
 
     setConfirming(true);
     try {
-      const result = await confirmAppointmentByToken(token);
+      const result = await confirmAppointmentByToken(token, businessId);
       if (result.success) {
         setConfirmed(true);
         toast.success('¡Cita confirmada exitosamente!');
@@ -75,7 +76,7 @@ const ConfirmAppointment = () => {
 
     setCancelling(true);
     try {
-      const result = await cancelAppointmentByToken(token);
+      const result = await cancelAppointmentByToken(token, businessId);
       if (result.success) {
         setCancelled(true);
         toast.success('Cita cancelada.');
@@ -268,7 +269,7 @@ const ConfirmAppointment = () => {
             </p>
             <button
               onClick={handleConfirm}
-              disabled={confirming}
+              disabled={confirming || appointment?.canConfirm === false}
               className="btn-primary w-full mb-3 flex items-center justify-center gap-2"
             >
               {confirming ? (
@@ -283,6 +284,12 @@ const ConfirmAppointment = () => {
                 </>
               )}
             </button>
+
+            {appointment?.canConfirm === false && (
+              <p className="text-xs text-amber-700 text-center mb-3">
+                Aún no puedes confirmar esta cita. Primero debe ser aprobada por el barbero.
+              </p>
+            )}
 
             <button
               onClick={() => setShowCancelConfirm(true)}

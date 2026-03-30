@@ -27,6 +27,15 @@ import {
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { generateConfirmationToken } from '../utils/confirmationToken';
+
+const getPublicAppBaseUrl = () => {
+  const configured = import.meta.env.VITE_PUBLIC_APP_URL || import.meta.env.VITE_APP_URL || '';
+  if (typeof window === 'undefined') return configured || 'https://qcutcr.netlify.app';
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') return window.location.origin;
+  return configured || window.location.origin;
+};
 
 const BookingPage = () => {
   const { businessId } = useParams();
@@ -170,6 +179,8 @@ const BookingPage = () => {
     if (!selectedDate || !scheduleConfig || !selectedBarberId) return [];
 
     const selectedSchedule = barberSchedules[selectedBarberId] || scheduleConfig;
+    const now = new Date();
+    const isTodaySelection = isSameDay(selectedDate, now);
 
     const slots = [];
     const [openHour, openMinute] = (selectedSchedule.openingTime || '09:00').split(':').map(Number);
@@ -218,11 +229,12 @@ const BookingPage = () => {
       const isLunchBreak = lunchEnabled && lunchStart && lunchEnd
         ? timeString >= lunchStart && timeString < lunchEnd
         : false;
+      const isPastTime = isTodaySelection && slotDate <= now;
 
       slots.push({
         time: timeString,
-        available: !isOccupied && !isBlocked && !isLunchBreak,
-        blocked: isBlocked || isLunchBreak
+        available: !isOccupied && !isBlocked && !isLunchBreak && !isPastTime,
+        blocked: isBlocked || isLunchBreak || isPastTime
       });
     }
 
@@ -239,8 +251,8 @@ const BookingPage = () => {
 
     if (!formData.clientPhone.trim()) {
       newErrors.clientPhone = 'El teléfono es requerido';
-    } else if (!/^\+?[\d\s-()]+$/.test(formData.clientPhone)) {
-      newErrors.clientPhone = 'Teléfono inválido';
+    } else if (!/^\d{8,}$/.test(formData.clientPhone)) {
+      newErrors.clientPhone = 'El teléfono debe tener mínimo 8 dígitos, sin espacios ni guiones';
     }
 
     if (!formData.clientEmail.trim()) {
@@ -283,10 +295,50 @@ const BookingPage = () => {
 
     setSubmitting(true);
 
+    // Verificar disponibilidad antes de reservar
+    // Paso 1: chequeo rápido contra citas ya cargadas en memoria
+    const fallbackBarberId = barberData?.barbers?.[0]?.id || 'barber-1';
+    const hasMemoryConflict = existingAppointments.some(apt => {
+      const aptBarberId = apt.barberId || fallbackBarberId;
+      if (aptBarberId !== selectedBarberId) return false;
+      return format(apt.date, 'HH:mm') === selectedTime;
+    });
+    if (hasMemoryConflict) {
+      toast.error('Este horario ya no está disponible. Por favor elige otro horario.');
+      setSelectedTime(null);
+      setSubmitting(false);
+      return;
+    }
+
+    // Paso 2: re-cargar citas frescas del servidor para detectar conflictos recientes
+    const freshResult = await getAppointmentsByDate(businessId, selectedDate);
+    if (freshResult.success) {
+      const freshAppointments = freshResult.data.filter(
+        apt => apt.status === 'pending' || apt.status === 'confirmed'
+      );
+      setExistingAppointments(freshAppointments);
+
+      const hasFreshConflict = freshAppointments.some(apt => {
+        const aptBarberId = apt.barberId || fallbackBarberId;
+        if (aptBarberId !== selectedBarberId) return false;
+        return format(apt.date, 'HH:mm') === selectedTime;
+      });
+
+      if (hasFreshConflict) {
+        toast.error('Este horario ya no está disponible. Por favor elige otro horario.');
+        setSelectedTime(null);
+        setSubmitting(false);
+        return;
+      }
+    }
+
     // Crear objeto Date con fecha y hora seleccionadas
     const [hour, minute] = selectedTime.split(':').map(Number);
     const appointmentDate = new Date(selectedDate);
     appointmentDate.setHours(hour, minute, 0, 0);
+    const confirmationToken = generateConfirmationToken();
+    const tokenExpiry = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000));
+    const confirmationUrl = `${getPublicAppBaseUrl()}/confirm-appointment/${confirmationToken}?b=${businessId}`;
 
     const selectedBarber = barberData?.barbers?.find(b => b.id === selectedBarberId);
     const appointmentData = {
@@ -295,7 +347,11 @@ const BookingPage = () => {
       clientEmail: formData.clientEmail.trim(),
       notes: formData.notes.trim(),
       date: appointmentDate,
+      time: selectedTime,
       status: selectedBarber?.autoAccept ? 'confirmed' : 'pending',
+      confirmationStatus: 'not_requested',
+      confirmationToken,
+      confirmationTokenExpiry: tokenExpiry,
       barberId: selectedBarberId,
       barberName: selectedBarber?.name || 'Barbero',
       // Usar email del barbero individual, si no existe usar del negocio
@@ -316,7 +372,7 @@ const BookingPage = () => {
           barberName: appointmentData.barberName,
           clientName: appointmentData.clientName,
           clientPhone: appointmentData.clientPhone,
-          appointmentDate: appointmentDate.toISOString()
+          appointmentDate: appointmentDate.getTime()
         };
 
         fetch(GOOGLE_SCRIPT_URL, {
@@ -334,8 +390,10 @@ const BookingPage = () => {
           clientName: appointmentData.clientName,
           barberName: appointmentData.barberName,
           businessName: barberData?.name || 'Qcut Barbería',
+          appointmentStatus: appointmentData.status,
+          confirmationUrl,
           cancelUrl: window.location.href, // Link a la misma página de booking donde pueden buscar su número para cancelar
-          appointmentDate: appointmentDate.toISOString()
+          appointmentDate: appointmentDate.getTime()
         };
 
         fetch(GOOGLE_SCRIPT_URL, {
@@ -611,7 +669,8 @@ const BookingPage = () => {
                       value={formData.clientPhone}
                       onChange={(e) => setFormData(prev => ({ ...prev, clientPhone: e.target.value }))}
                       className={`input pl-11 ${errors.clientPhone ? 'input-error' : ''}`}
-                      placeholder="+34 123 456 789"
+                      placeholder="Ejemplo: 88887777"
+                      inputMode="numeric"
                     />
                   </div>
                   {errors.clientPhone && (

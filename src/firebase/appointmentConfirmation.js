@@ -1,13 +1,16 @@
 import {
+  collection,
   doc,
   getDoc,
   updateDoc,
   collectionGroup,
+  query,
+  where,
+  limit,
   getDocs,
   Timestamp
 } from 'firebase/firestore';
 import { db } from './config';
-import { callHttps } from './functionsClient';
 import { generateConfirmationToken } from '../utils/confirmationToken';
 
 // ── SISTEMA DE CONFIRMACION DE CITAS ────────────────────────────────────────
@@ -69,6 +72,27 @@ const resolveAppointmentRef = async (uid, appointmentId) => {
   };
 };
 
+const resolveAppointmentByToken = async (rawToken, businessId = '') => {
+  const token = (rawToken || '').trim();
+  if (!token || !businessId) return null;
+
+  const q = query(
+    collection(db, 'barbers', businessId, 'appointments'),
+    where('confirmationToken', '==', token),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+
+  const docSnap = snap.docs[0];
+  return {
+    ref: docSnap.ref,
+    id: docSnap.id,
+    data: docSnap.data(),
+    businessId: docSnap.ref.parent?.parent?.id || ''
+  };
+};
+
 /** Actualiza/agrega token de confirmacion para una cita existente */
 export const updateAppointmentConfirmationToken = async (uid, appointmentId) => {
   try {
@@ -89,7 +113,7 @@ export const updateAppointmentConfirmationToken = async (uid, appointmentId) => 
     return {
       success: true,
       token,
-      confirmationUrl: `${getConfirmationBaseUrl()}/confirm-appointment/${token}`
+         confirmationUrl: `${getConfirmationBaseUrl()}/confirm-appointment/${token}?b=${uid}`
     };
   } catch (error) {
     return { success: false, error: error.message };
@@ -137,19 +161,49 @@ export const recordEmailError = async (uid, appointmentId, errorMessage) => {
   }
 };
 
-/** Obtiene cita por token de confirmacion para validar (Cloud Function; no expone collectionGroup) */
-export const getAppointmentByConfirmationToken = async (token) => {
+/** Obtiene cita por token de confirmacion para validar (lectura directa Firestore) */
+export const getAppointmentByConfirmationToken = async (token, businessId = '') => {
   try {
-    const result = await callHttps('appointmentGetByToken', { token: token.trim() });
-    if (!result.success) {
-      return { success: false, error: result.error || 'Token no válido' };
+    if (!businessId) {
+      return { success: false, error: 'Enlace incompleto. Solicita un nuevo enlace de gestión.' };
     }
-    const d = result.data;
+    const found = await resolveAppointmentByToken(token, businessId);
+    if (!found) {
+      return { success: false, error: 'Token no encontrado o invalido' };
+    }
+
+    const { data, id, businessId: foundBusinessId } = found;
+    const expiry = data.confirmationTokenExpiry?.toDate
+      ? data.confirmationTokenExpiry.toDate()
+      : (data.confirmationTokenExpiry ? new Date(data.confirmationTokenExpiry) : null);
+
+    if (expiry && new Date() > expiry) {
+      return { success: false, error: 'El enlace de confirmacion ha expirado. Por favor, solicita uno nuevo.' };
+    }
+
+    if (data.status === 'cancelled' || data.confirmationStatus === 'cancelled') {
+      return { success: false, error: 'Esta cita ya fue cancelada.' };
+    }
+
+    const dateVal = data.date?.toDate ? data.date.toDate() : new Date(data.date);
+    const canConfirm = data.status === 'confirmed' && data.confirmationStatus !== 'confirmed' && data.confirmationStatus !== 'cancelled';
     return {
       success: true,
       data: {
-        ...d,
-        date: typeof d.date === 'string' ? new Date(d.date) : d.date
+        id,
+        businessId: foundBusinessId,
+        clientName: data.clientName,
+        clientPhone: data.clientPhone,
+        clientEmail: data.clientEmail,
+        barberName: data.barberName,
+        barberId: data.barberId,
+        status: data.status,
+        notes: data.notes,
+        confirmationStatus: data.confirmationStatus,
+        canConfirm,
+        canCancel: data.status !== 'cancelled',
+        time: data.time,
+        date: dateVal
       }
     };
   } catch (error) {
@@ -157,27 +211,77 @@ export const getAppointmentByConfirmationToken = async (token) => {
   }
 };
 
-/** Confirma una cita usando el token (Cloud Function) */
-export const confirmAppointmentByToken = async (token) => {
+/** Confirma una cita usando el token (actualizacion directa Firestore) */
+export const confirmAppointmentByToken = async (token, businessId = '') => {
   try {
-    const result = await callHttps('appointmentConfirmByToken', { token: token.trim() });
-    if (!result.success) {
-      return { success: false, error: result.error || 'No se pudo confirmar' };
+    const found = await resolveAppointmentByToken(token, businessId);
+    if (!found) {
+      return { success: false, error: 'Token no encontrado o invalido' };
     }
-    return { success: true, appointmentId: result.appointmentId, businessId: result.businessId };
+
+    const { ref, data, id, businessId: foundBusinessId } = found;
+    const expiry = data.confirmationTokenExpiry?.toDate
+      ? data.confirmationTokenExpiry.toDate()
+      : (data.confirmationTokenExpiry ? new Date(data.confirmationTokenExpiry) : null);
+
+    if (expiry && new Date() > expiry) {
+      return { success: false, error: 'El enlace de confirmacion ha expirado. Por favor, solicita uno nuevo.' };
+    }
+
+    if (data.status === 'cancelled' || data.confirmationStatus === 'cancelled') {
+      return { success: false, error: 'Esta cita ya fue cancelada.' };
+    }
+
+    if (data.status !== 'confirmed') {
+      return { success: false, error: 'Aún no puedes confirmar: el barbero no ha confirmado esta cita.' };
+    }
+
+    if (data.confirmationStatus === 'confirmed') {
+      return { success: true, appointmentId: id, businessId: foundBusinessId, alreadyConfirmed: true };
+    }
+
+    await updateDoc(ref, {
+      confirmationStatus: 'confirmed',
+      confirmedAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    });
+
+    return { success: true, appointmentId: id, businessId: foundBusinessId };
   } catch (error) {
     return { success: false, error: error.message || 'Error al confirmar' };
   }
 };
 
-/** Cancela una cita desde el enlace del cliente usando el token (Cloud Function) */
-export const cancelAppointmentByToken = async (token) => {
+/** Cancela una cita desde el enlace del cliente usando el token (actualizacion directa Firestore) */
+export const cancelAppointmentByToken = async (token, businessId = '') => {
   try {
-    const result = await callHttps('appointmentCancelByToken', { token: token.trim() });
-    if (!result.success) {
-      return { success: false, error: result.error || 'No se pudo cancelar' };
+    const found = await resolveAppointmentByToken(token, businessId);
+    if (!found) {
+      return { success: false, error: 'Token no encontrado o invalido' };
     }
-    return { success: true, appointmentId: result.appointmentId, businessId: result.businessId };
+
+    const { ref, data, id, businessId: foundBusinessId } = found;
+    const expiry = data.confirmationTokenExpiry?.toDate
+      ? data.confirmationTokenExpiry.toDate()
+      : (data.confirmationTokenExpiry ? new Date(data.confirmationTokenExpiry) : null);
+
+    if (expiry && new Date() > expiry) {
+      return { success: false, error: 'El enlace de confirmacion ha expirado. Por favor, solicita uno nuevo.' };
+    }
+
+    if (data.status === 'cancelled' || data.confirmationStatus === 'cancelled') {
+      return { success: true, appointmentId: id, businessId: foundBusinessId, alreadyCancelled: true };
+    }
+
+    await updateDoc(ref, {
+      status: 'cancelled',
+      confirmationStatus: 'cancelled',
+      cancelledAt: Timestamp.now(),
+      cancelledBy: 'client',
+      updatedAt: Timestamp.now()
+    });
+
+    return { success: true, appointmentId: id, businessId: foundBusinessId };
   } catch (error) {
     return { success: false, error: error.message || 'Error al cancelar' };
   }
@@ -232,7 +336,7 @@ export const rescheduleAppointment = async (uid, appointmentId, newDate, newTime
     return {
       success: true,
       newConfirmationToken: newToken,
-      newConfirmationUrl: `${getConfirmationBaseUrl()}/confirm-appointment/${newToken}`,
+         newConfirmationUrl: `${getConfirmationBaseUrl()}/confirm-appointment/${newToken}?b=${uid}`,
       appointment: { id: appointmentId, ...updateData }
     };
   } catch (error) {
@@ -252,7 +356,7 @@ export const getAppointmentConfirmationStatus = async (uid, appointmentId) => {
     return {
       success: true,
       data: {
-        confirmationStatus: data.confirmationStatus || 'pending',
+        confirmationStatus: data.confirmationStatus || 'not_requested',
         emailSent: !!data.emailSent,
         emailError: data.emailError || null,
         emailRetries: data.emailRetries || 0,
@@ -307,7 +411,7 @@ export const resendConfirmationEmail = async (uid, appointmentId) => {
     return {
       success: true,
       token,
-      confirmationUrl: `${getConfirmationBaseUrl()}/confirm-appointment/${token}`,
+      confirmationUrl: `${getConfirmationBaseUrl()}/confirm-appointment/${token}?b=${uid}`,
       clientEmail: data.clientEmail,
       clientPhone: data.clientPhone
     };

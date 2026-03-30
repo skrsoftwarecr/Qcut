@@ -80,12 +80,16 @@ function doPost(e) {
       Logger.log('Sending appointment_rescheduled to client: ' + recipientEmail);
       
     } else if (type === 'appointment_client_created') {
-      // Email AL CLIENTE notificando que su cita fue registrada exitosamente (Bug 3)
+      // Email al cliente confirmando recepción de su solicitud
       const businessName = payload.businessName || '';
+      const appointmentStatus = payload.appointmentStatus || 'pending';
+      const confirmationUrl = payload.confirmationUrl || '';
       const cancelUrl = payload.cancelUrl || '';
-      subject = 'Confirmación de Cita - ' + businessName;
+      subject = appointmentStatus === 'confirmed'
+        ? 'Cita Confirmada - ' + businessName
+        : 'Solicitud de Cita Recibida - ' + businessName;
       recipientEmail = clientEmail;
-      htmlBody = getClientCreatedEmail(clientName, barberName, dateStr, timeStr, businessName, cancelUrl);
+      htmlBody = getClientCreatedEmail(clientName, barberName, dateStr, timeStr, businessName, confirmationUrl, cancelUrl, appointmentStatus);
       Logger.log('Sending appointment_client_created to client: ' + recipientEmail);
     }
     
@@ -136,14 +140,13 @@ function formatDateToString(appointmentDate) {
   if (isNaN(dateObj.getTime())) {
     return '';
   }
-  
-  const offsetMs = 6 * 60 * 60 * 1000;
-  const crDate = new Date(dateObj.getTime() + offsetMs);
-  
-  const day = crDate.getUTCDate();
-  const month = crDate.getUTCMonth() + 1;
-  const year = crDate.getUTCFullYear();
-  const dayNum = crDate.getUTCDay();
+
+  const tz = 'America/Costa_Rica';
+  const day = Number(Utilities.formatDate(dateObj, tz, 'd'));
+  const month = Number(Utilities.formatDate(dateObj, tz, 'M'));
+  const year = Number(Utilities.formatDate(dateObj, tz, 'yyyy'));
+  const dayIso = Number(Utilities.formatDate(dateObj, tz, 'u'));
+  const dayNum = dayIso % 7;
   
   const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   const days = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
@@ -160,21 +163,13 @@ function formatTimeToString(appointmentDate) {
   if (isNaN(dateObj.getTime())) {
     return '';
   }
-  
-  const offsetMs = 6 * 60 * 60 * 1000;
-  const crDate = new Date(dateObj.getTime() + offsetMs);
-  
-  const hour = crDate.getUTCHours();
-  const mins = ('0' + crDate.getUTCMinutes()).slice(-2);
-  
-  const timeString = ('0' + hour).slice(-2) + ':' + mins;
-  
-  // Convertir a formato 12h con AM/PM
-  const [hours, minutes] = timeString.split(':')
-  const h = parseInt(hours)
-  const ampm = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 || 12
-  return `${h12}:${minutes} ${ampm}`
+
+  const tz = 'America/Costa_Rica';
+  const hh = Number(Utilities.formatDate(dateObj, tz, 'H'));
+  const mm = Utilities.formatDate(dateObj, tz, 'mm');
+  const ampm = hh >= 12 ? 'PM' : 'AM';
+  const h12 = hh % 12 || 12;
+  return h12 + ':' + mm + ' ' + ampm;
 }
 
 // ============================================
@@ -432,21 +427,31 @@ function getClientRejectedEmail(clientName, barberName, date, time) {
   return html;
 }
 
-function getClientCreatedEmail(clientName, barberName, date, time, businessName, cancelUrl) {
+function getClientCreatedEmail(clientName, barberName, date, time, businessName, confirmationUrl, cancelUrl, appointmentStatus) {
+  const isConfirmed = appointmentStatus === 'confirmed';
+  const title = isConfirmed ? '¡Tu Cita ha sido Confirmada!' : '¡Tu Solicitud de Cita fue Enviada!';
+  const intro = isConfirmed
+    ? 'Tu cita en <strong>' + businessName + '</strong> con ' + barberName + ' ha sido confirmada.'
+    : 'Tu solicitud de cita en <strong>' + businessName + '</strong> con ' + barberName + ' fue enviada correctamente. Debes esperar la confirmación del barbero.';
+  const note = isConfirmed
+    ? 'Si necesitas cancelar, puedes hacerlo en cualquier momento desde el siguiente enlace:'
+    : 'Te avisaremos por correo cuando el barbero confirme o rechace tu solicitud. Si deseas cancelarla mientras tanto, puedes hacerlo aquí:';
+  const manageUrl = confirmationUrl || cancelUrl || '';
+
   const html = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">'
-    + '<div style="background: #34c759; color: white; padding: 30px 20px; text-align: center;">'
+    + '<div style="background: ' + (isConfirmed ? '#34c759' : '#ff9500') + '; color: white; padding: 30px 20px; text-align: center;">'
     + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">Qcut</h1>'
     + '<p style="margin: 5px 0 0 0; font-size: 13px;">Sistema de Citas para Barberias</p>'
     + '</div>'
     + '<div style="background: white; padding: 30px 20px; border: 1px solid #e5e5e5;">'
-    + '<h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">¡Tu Cita ha sido Registrada!</h2>'
+    + '<h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">' + title + '</h2>'
     + '<p style="color: #555; font-size: 14px; line-height: 1.6; margin: 0 0 15px 0;">'
     + 'Hola ' + clientName + ','
     + '</p>'
     + '<p style="color: #555; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">'
-    + 'Tu cita en <strong>' + businessName + '</strong> con ' + barberName + ' ha sido procesada exitosamente.'
+    + intro
     + '</p>'
-    + '<div style="background: #f5f5f5; padding: 15px; border-radius: 4px; border-left: 4px solid #34c759; margin: 20px 0;">'
+    + '<div style="background: #f5f5f5; padding: 15px; border-radius: 4px; border-left: 4px solid ' + (isConfirmed ? '#34c759' : '#ff9500') + '; margin: 20px 0;">'
     + '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">'
     + '<tr><td style="padding: 5px 0; color: #666; font-weight: bold;">Barbería:</td>'
     + '<td style="padding: 5px 0; color: #333; text-align: right;">' + businessName + '</td></tr>'
@@ -455,14 +460,14 @@ function getClientCreatedEmail(clientName, barberName, date, time, businessName,
     + '<tr><td style="padding: 5px 0; color: #666; font-weight: bold;">Fecha:</td>'
     + '<td style="padding: 5px 0; color: #333; text-align: right;">' + date + '</td></tr>'
     + '<tr><td style="padding: 5px 0; color: #666; font-weight: bold;">Hora:</td>'
-    + '<td style="padding: 5px 0; color: #333; text-align: right;">' + time + '</td></tr>'
+    + '<td style="padding: 5px 0; color: #333; text-align: right;">' + time + ' hrs</td></tr>'
     + '</table>'
     + '</div>'
     + '<p style="color: #555; font-size: 13px; line-height: 1.6; margin: 15px 0;">'
-    + 'Si necesitas cancelar, puedes hacerlo en cualquier momento desde el siguiente enlace:'
+    + note
     + '</p>'
     + '<div style="text-align: center; margin: 30px 0;">'
-    + '<a href="' + cancelUrl + '" style="background: #e5e5e5; color: #333; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block; font-size: 14px;">'
+    + '<a href="' + manageUrl + '" style="background: #e5e5e5; color: #333; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block; font-size: 14px;">'
     + 'Gestionar mi Cita'
     + '</a>'
     + '</div>'

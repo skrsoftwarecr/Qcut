@@ -9,6 +9,8 @@ export default [
   { 
     ignores: [
       'dist', 
+      'dist/**',
+      '**/dist/**',
       'node_modules', 
       'functions', 
       'assets', 
@@ -16,7 +18,8 @@ export default [
       'public',
       'playwright-report',
       'test-results',
-      'coverage'
+      'coverage',
+      'Qcut-main'
     ] 
   },
   {

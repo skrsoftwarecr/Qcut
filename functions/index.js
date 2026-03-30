@@ -9,12 +9,16 @@ initializeApp();
 
 const REGION = process.env.FUNCTIONS_REGION || 'us-central1';
 const db = () => getFirestore();
+const ON_CALL_OPTIONS = {
+  region: REGION,
+  cors: true
+};
 
 /**
  * REGISTRAR BARBERO (Admin only)
  * Crea una cuenta en Firebase Auth y vincula el perfil al negocio.
  */
-exports.registrarBarbero = onCall({ region: REGION }, async (request) => {
+exports.registrarBarbero = onCall(ON_CALL_OPTIONS, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
   }
@@ -47,33 +51,33 @@ exports.registrarBarbero = onCall({ region: REGION }, async (request) => {
 });
 
 /** Público: citas del día (reservas web sin auth) */
-exports.publicGetAppointmentsForDay = onCall({ region: REGION }, async (request) => {
+exports.publicGetAppointmentsForDay = onCall(ON_CALL_OPTIONS, async (request) => {
   const appointments = await appoint.publicGetAppointmentsForDay(db(), request.data || {});
   return { appointments };
 });
 
 /** Público: citas futuras por teléfono (cancelación desde booking) */
-exports.publicGetAppointmentsByPhone = onCall({ region: REGION }, async (request) => {
+exports.publicGetAppointmentsByPhone = onCall(ON_CALL_OPTIONS, async (request) => {
   const appointments = await appoint.publicGetAppointmentsByPhone(db(), request.data || {});
   return { appointments };
 });
 
 /** Público: cancelar cita verificando teléfono */
-exports.publicCancelAppointment = onCall({ region: REGION }, async (request) => {
+exports.publicCancelAppointment = onCall(ON_CALL_OPTIONS, async (request) => {
   return appoint.publicCancelAppointment(db(), request.data || {});
 });
 
 /** Público: datos de cita para página de confirmación por token */
-exports.appointmentGetByToken = onCall({ region: REGION }, async (request) => {
+exports.appointmentGetByToken = onCall(ON_CALL_OPTIONS, async (request) => {
   return appoint.appointmentGetByToken(db(), request.data || {});
 });
 
 /** Público: confirmar cita por token */
-exports.appointmentConfirmByToken = onCall({ region: REGION }, async (request) => {
+exports.appointmentConfirmByToken = onCall(ON_CALL_OPTIONS, async (request) => {
   return appoint.appointmentConfirmByToken(db(), request.data || {});
 });
 
 /** Público: cancelar cita por token (enlace de correo) */
-exports.appointmentCancelByToken = onCall({ region: REGION }, async (request) => {
+exports.appointmentCancelByToken = onCall(ON_CALL_OPTIONS, async (request) => {
   return appoint.appointmentCancelByToken(db(), request.data || {});
 });

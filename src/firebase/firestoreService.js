@@ -229,7 +229,7 @@ export const createAppointment = async (uid, appointmentData) => {
       ...appointmentData,
       date: Timestamp.fromDate(appointmentData.date),
       createdAt: Timestamp.now(),
-      reminderSent: false // CAMBIO 4: para recordatorio WhatsApp
+      reminderSent: false
     });
     return { success: true, id: docRef.id };
   } catch (error) {
@@ -295,21 +295,24 @@ export const getClientAppointmentsByPhone = async (uid, phone) => {
   }
 };
 
-/** Obtiene citas para una fecha específica (página pública) */
+/** Obtiene citas para una fecha específica (lectura pública directa de Firestore) */
 export const getAppointmentsByDate = async (uid, date) => {
   try {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-    const { appointments: raw } = await callHttps('publicGetAppointmentsForDay', {
-      businessId: uid,
-      startMs: startOfDay.getTime(),
-      endMs: endOfDay.getTime()
-    });
-    const appointments = (raw || []).map((d) => ({
-      ...d,
-      date: typeof d.date === 'string' ? new Date(d.date) : d.date
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+    const q = query(
+      collection(db, 'barbers', uid, 'appointments'),
+      where('date', '>=', Timestamp.fromDate(dayStart)),
+      where('date', '<=', Timestamp.fromDate(dayEnd))
+    );
+    const snap = await getDocs(q);
+    const appointments = snap.docs.map(d => ({
+      id: d.id,
+      barberId: d.data().barberId,
+      status: d.data().status,
+      date: d.data().date.toDate()
     }));
     return { success: true, data: appointments };
   } catch (error) {

@@ -248,7 +248,11 @@ const Dashboard = () => {
   }, [filteredAppointments]);
 
   const clientConfirmationAppointments = useMemo(() => {
-    return filteredAppointments.filter(apt => apt.status !== 'cancelled');
+    return filteredAppointments.filter(
+      (apt) =>
+        apt.status !== 'cancelled' &&
+        (apt.confirmationStatus === 'pending' || apt.confirmationStatus === 'confirmed')
+    );
   }, [filteredAppointments]);
 
   const filteredClientConfirmationAppointments = useMemo(() => {
@@ -259,7 +263,7 @@ const Dashboard = () => {
 
   const clientConfirmationStats = useMemo(() => {
     const pending = filteredClientConfirmationAppointments.filter(
-      apt => (apt.confirmationStatus || 'pending') === 'pending'
+      apt => apt.confirmationStatus === 'pending'
     ).length;
     const confirmed = filteredClientConfirmationAppointments.filter(
       apt => apt.confirmationStatus === 'confirmed'
@@ -296,6 +300,11 @@ const Dashboard = () => {
   const handleSendClientConfirmationRequest = async (appointment) => {
     if (!appointment?.clientEmail) {
       toast.error('La cita no tiene email del cliente');
+      return;
+    }
+
+    if (appointment.status !== 'confirmed') {
+      toast.error('Primero debes confirmar la cita como barbero antes de solicitar confirmación al cliente.');
       return;
     }
 
@@ -362,7 +371,7 @@ const Dashboard = () => {
             clientEmail: appointment.clientEmail,
             clientName: appointment.clientName,
             barberName: appointment.barberName,
-            appointmentDate: appointment.date.toISOString()
+            appointmentDate: appointment.date.getTime()
           };
           
           console.log('📧 ENVIANDO CONFIRMACIÓN (Barbero aprobó)');
@@ -382,6 +391,7 @@ const Dashboard = () => {
         } else if (appointment && appointment.status === 'confirmed') {
           console.log('ℹ️ Cita ya estaba confirmada (auto-confirmada), no se envía email');
         } else if (!GOOGLE_SCRIPT_URL) {
+          toast.error('No se envió correo: falta configurar VITE_GOOGLE_SCRIPT_URL');
           console.warn('⚠️ VITE_GOOGLE_SCRIPT_URL no está configurada. Se omite envío de email de confirmación.');
         } else {
           console.warn('❌ NO SE ENVIÓ CONFIRMACIÓN - Email cliente vacío o cita no encontrada');
@@ -398,7 +408,7 @@ const Dashboard = () => {
             clientEmail: appointment.clientEmail,
             clientName: appointment.clientName,
             barberName: appointment.barberName,
-            appointmentDate: appointment.date.toISOString()
+            appointmentDate: appointment.date.getTime()
           };
           
           console.log('📧 ENVIANDO RECHAZO');
@@ -416,6 +426,7 @@ const Dashboard = () => {
             console.error('❌ Error notificando rechazo:', err);
           });
         } else if (!GOOGLE_SCRIPT_URL) {
+          toast.error('No se envió correo: falta configurar VITE_GOOGLE_SCRIPT_URL');
           console.warn('⚠️ VITE_GOOGLE_SCRIPT_URL no está configurada. Se omite envío de email de rechazo.');
         }
       }
@@ -446,8 +457,8 @@ const Dashboard = () => {
             clientEmail: appointment.clientEmail,
             clientName: appointment.clientName,
             barberName: appointment.barberName,
-            oldDate: appointment.date.toISOString(),
-            newDate: new Date(`${newDate}T${newTime}`).toISOString(),
+            oldDate: appointment.date.getTime(),
+            newDate: new Date(`${newDate}T${newTime}`).getTime(),
             confirmationLink: result.newConfirmationUrl
           };
           
@@ -482,7 +493,7 @@ const Dashboard = () => {
           clientEmail: appointment.clientEmail,
           clientName: appointment.clientName,
           barberName: appointment.barberName,
-          appointmentDate: appointment.date.toISOString(),
+          appointmentDate: appointment.date.getTime(),
           cancelReason: reason || 'Sin especificar'
         };
         
@@ -1071,7 +1082,7 @@ const Dashboard = () => {
                           <p className="text-sm text-gray-600">Barbero: {apt.barberName}</p>
                         )}
                         <div className="pt-1">
-                          {(apt.confirmationStatus || 'pending') === 'confirmed' ? (
+                          {apt.confirmationStatus === 'confirmed' ? (
                             <span className="inline-block px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                               Cliente confirmó
                             </span>
@@ -1102,7 +1113,7 @@ const Dashboard = () => {
                           </a>
                         )}
 
-                        {(apt.confirmationStatus || 'pending') !== 'confirmed' && (
+                        {apt.confirmationStatus !== 'confirmed' && (
                           <button
                             onClick={() => handleSendClientConfirmationRequest(apt)}
                             className="px-3 py-2 text-xs font-semibold bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition"
@@ -1111,7 +1122,7 @@ const Dashboard = () => {
                           </button>
                         )}
 
-                        {(apt.confirmationStatus || 'pending') !== 'confirmed' && (
+                        {apt.confirmationStatus !== 'confirmed' && (
                           <button
                             onClick={() => setRescheduleModal({
                               open: true,
@@ -1127,7 +1138,7 @@ const Dashboard = () => {
                           </button>
                         )}
 
-                        {(apt.confirmationStatus || 'pending') !== 'confirmed' && (
+                        {apt.confirmationStatus !== 'confirmed' && (
                           <button
                             onClick={() => setCancelModal({
                               open: true,
