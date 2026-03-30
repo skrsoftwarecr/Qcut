@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:e2e": "playwright test",
-    "lint": "eslint . --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --report-unused-disable-directives --max-warnings 0 --no-warn-ignored"
   },
   "dependencies": {
     "date-fns": "^3.0.0",

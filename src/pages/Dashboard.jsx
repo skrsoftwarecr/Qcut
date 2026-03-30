@@ -316,7 +316,7 @@ const Dashboard = () => {
       await recordEmailSent(effectiveUid, appointment.id);
       toast.success('Solicitud de confirmación enviada al cliente');
       loadAppointments();
-    } catch (error) {
+    } catch (_err) {
       await recordEmailError(effectiveUid, appointment.id, error.message || 'Error inesperado');
       toast.error('Error enviando solicitud de confirmación');
     }

@@ -91,7 +91,7 @@ export const updateAppointmentConfirmationToken = async (uid, appointmentId) => 
       token,
       confirmationUrl: `${getConfirmationBaseUrl()}/confirm-appointment/${token}`
     };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -111,7 +111,7 @@ export const recordEmailSent = async (uid, appointmentId) => {
       updatedAt: Timestamp.now()
     });
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -132,7 +132,7 @@ export const recordEmailError = async (uid, appointmentId, errorMessage) => {
       updatedAt: Timestamp.now()
     });
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -152,7 +152,7 @@ export const getAppointmentByConfirmationToken = async (token) => {
         date: typeof d.date === 'string' ? new Date(d.date) : d.date
       }
     };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message || 'Error al cargar la cita' };
   }
 };
@@ -165,7 +165,7 @@ export const confirmAppointmentByToken = async (token) => {
       return { success: false, error: result.error || 'No se pudo confirmar' };
     }
     return { success: true, appointmentId: result.appointmentId, businessId: result.businessId };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message || 'Error al confirmar' };
   }
 };
@@ -178,7 +178,7 @@ export const cancelAppointmentByToken = async (token) => {
       return { success: false, error: result.error || 'No se pudo cancelar' };
     }
     return { success: true, appointmentId: result.appointmentId, businessId: result.businessId };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message || 'Error al cancelar' };
   }
 };
@@ -235,7 +235,7 @@ export const rescheduleAppointment = async (uid, appointmentId, newDate, newTime
       newConfirmationUrl: `${getConfirmationBaseUrl()}/confirm-appointment/${newToken}`,
       appointment: { id: appointmentId, ...updateData }
     };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -260,7 +260,7 @@ export const getAppointmentConfirmationStatus = async (uid, appointmentId) => {
         tokenExpiry: data.confirmationTokenExpiry?.toDate()
       }
     };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -311,7 +311,7 @@ export const resendConfirmationEmail = async (uid, appointmentId) => {
       clientEmail: data.clientEmail,
       clientPhone: data.clientPhone
     };
-  } catch (error) {
+  } catch (_err) {
     console.error(
       '[resendConfirmationEmail] Error:',
       error.code,
@@ -353,7 +353,7 @@ export const sendConfirmationEmailViaGAS = async (appointmentData, confirmationU
 
     const result = await response.json();
     return result;
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -380,7 +380,7 @@ export const sendCancellationEmailViaGAS = async (appointmentData) => {
 
     const result = await response.json();
     return result;
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -409,7 +409,7 @@ export const sendRescheduleEmailViaGAS = async (appointmentData, newConfirmation
 
     const result = await response.json();
     return result;
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };

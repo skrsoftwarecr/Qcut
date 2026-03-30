@@ -38,8 +38,8 @@ const ConfirmAppointment = () => {
           setError(result.error || 'No se pudo cargar la cita');
           setAppointment(null);
         }
-      } catch (error) {
-        setError('Error al cargar la información: ' + error.message);
+      } catch (_err) {
+        setError('Error al cargar la información: ' + _err.message);
         setAppointment(null);
       } finally {
         setLoading(false);
@@ -62,8 +62,8 @@ const ConfirmAppointment = () => {
         setError(result.error || 'No se pudo confirmar la cita');
         toast.error('Error al confirmar');
       }
-    } catch (error) {
-      setError('Error: ' + error.message);
+    } catch (_err) {
+      setError('Error: ' + _err.message);
       toast.error('Error en la confirmación');
     } finally {
       setConfirming(false);
@@ -83,8 +83,8 @@ const ConfirmAppointment = () => {
         setError(result.error || 'No se pudo cancelar la cita');
         toast.error('Error al cancelar');
       }
-    } catch (error) {
-      setError('Error: ' + error.message);
+    } catch (_err) {
+      setError('Error: ' + _err.message);
       toast.error('Error al cancelar');
     } finally {
       setCancelling(false);

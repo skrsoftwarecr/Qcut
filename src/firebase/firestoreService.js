@@ -25,7 +25,7 @@ export const getUserProfile = async (uid) => {
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) return { success: true, data: docSnap.data() };
     return { success: true, data: null };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -35,7 +35,7 @@ export const setUserProfile = async (uid, data) => {
   try {
     await setDoc(doc(db, 'users', uid), data, { merge: true });
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -47,7 +47,7 @@ export const getBarberData = async (uid) => {
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) return { success: true, data: docSnap.data() };
     return { success: false, error: 'No se encontraron datos de la barbería' };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -86,7 +86,7 @@ export const createInitialBarberData = async (uid, email) => {
     if (!docSnap.exists()) {
       await setDoc(docRef, buildPayload());
     }
-  } catch (error) {
+  } catch (_err) {
     console.error('Error creating initial barber data:', error);
     try {
       await setUserProfile(uid, {
@@ -141,7 +141,7 @@ export const findBarberAssignmentByEmail = async (email) => {
     }
 
     return { success: true, data: null };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -151,7 +151,7 @@ export const updateBarberData = async (uid, data) => {
   try {
     await setDoc(doc(db, 'barbers', uid, 'config', 'barberdata'), data, { merge: true });
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -180,7 +180,7 @@ export const getAppointments = async (uid, startDate, endDate, barberId = null) 
     }
 
     return { success: true, data: appointments };
-  } catch (error) {
+  } catch (_err) {
     console.error('Error al obtener citas:', error);
     return { success: false, error: error.message };
   }
@@ -232,7 +232,7 @@ export const createAppointment = async (uid, appointmentData) => {
       reminderSent: false // CAMBIO 4: para recordatorio WhatsApp
     });
     return { success: true, id: docRef.id };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -245,7 +245,7 @@ export const updateAppointmentStatus = async (uid, appointmentId, status) => {
       updatedAt: Timestamp.now()
     });
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -255,7 +255,7 @@ export const deleteAppointment = async (uid, appointmentId) => {
   try {
     await deleteDoc(doc(db, 'barbers', uid, 'appointments', appointmentId));
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -271,7 +271,7 @@ export const cancelAppointmentByClient = async (uid, appointmentId, appointmentD
       phone: (appointmentData.clientPhone || '').trim()
     });
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -290,7 +290,7 @@ export const getClientAppointmentsByPhone = async (uid, phone) => {
       date: typeof apt.date === 'string' ? new Date(apt.date) : apt.date
     }));
     return { success: true, data: appointments };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -312,7 +312,7 @@ export const getAppointmentsByDate = async (uid, date) => {
       date: typeof d.date === 'string' ? new Date(d.date) : d.date
     }));
     return { success: true, data: appointments };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -336,7 +336,7 @@ export const getScheduleConfig = async (uid) => {
       };
     }
     return { success: false, error: 'No se encontró configuración' };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -352,7 +352,7 @@ export const getBarberScheduleConfig = async (businessId, barberId) => {
     }
 
     return { success: false, error: 'No se encontró configuración del barbero' };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -366,7 +366,7 @@ export const getAllBarberScheduleConfigs = async (businessId) => {
       configs[d.id] = d.data();
     });
     return { success: true, data: configs };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -384,7 +384,7 @@ export const upsertBarberScheduleConfig = async (businessId, barberId, configDat
       { merge: true }
     );
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -410,7 +410,7 @@ export const deactivateBarberTemporaryPassword = async (businessId, barberId) =>
 
     await updateDoc(barberDataRef, { barbers, updatedAt: Timestamp.now() });
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -428,7 +428,7 @@ export const getBarberBlocks = async (uid, barberId = null) => {
       try {
         const q = query(blocksRef, where('barberId', '==', barberId), orderBy('fecha', 'asc'));
         snapshot = await getDocs(q);
-      } catch (error) {
+      } catch (_err) {
         // Si falla por índice compuesto, obtiene todos y filtra en cliente
         if (error.code === 'failed-precondition' || error.message?.includes('index')) {
           console.warn('Índice compuesto no disponible, filtrando en cliente:', error.message);
@@ -463,7 +463,7 @@ export const getBarberBlocks = async (uid, barberId = null) => {
     }
     
     return { success: true, data: blocks };
-  } catch (error) {
+  } catch (_err) {
     console.error('Error al obtener bloqueos:', error);
     // Retorna error pero con datos vacíos para no romper la app
     return { success: false, error: error.message, data: [] };
@@ -487,7 +487,7 @@ export const addBarberBlock = async (uid, blockData) => {
       createdAt: Timestamp.now()
     });
     return { success: true, id: docRef.id };
-  } catch (error) {
+  } catch (_err) {
     console.error('Error al agregar bloqueo:', error);
     const detailed = error?.code ? `${error.code}: ${error.message}` : error.message;
     return { success: false, error: detailed };
@@ -500,7 +500,7 @@ export const deleteBarberBlock = async (uid, blockId) => {
     const docRef = doc(db, 'barbers', uid, 'bloqueos', blockId);
     await deleteDoc(docRef);
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     console.error('Error al eliminar bloqueo:', error);
     return { success: false, error: error.message };
   }
@@ -520,7 +520,7 @@ export const getUnreadNotifications = async (uid) => {
     const notifications = [];
     snapshot.forEach(d => notifications.push({ id: d.id, ...d.data() }));
     return { success: true, data: notifications };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -550,7 +550,7 @@ export const markNotificationRead = async (uid, notifId) => {
   try {
     await updateDoc(doc(db, 'barbers', uid, 'notifications', notifId), { read: true });
     return { success: true };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };
@@ -564,7 +564,7 @@ export const createNotificationRequest = async (uid, payload) => {
       status: 'pending'
     });
     return { success: true, id: docRef.id };
-  } catch (error) {
+  } catch (_err) {
     return { success: false, error: error.message };
   }
 };

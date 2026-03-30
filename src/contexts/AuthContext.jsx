@@ -168,7 +168,7 @@ export const AuthProvider = ({ children }) => {
           setLinkedBarberId(null);
           setBusinessId(null);
         }
-      } catch (error) {
+      } catch (_err) {
         console.error("Auth initialization error:", error);
       } finally {
         setLoading(false);
