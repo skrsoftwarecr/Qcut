@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import {
   getAppointments,
   subscribeToAppointmentsRealtime,
@@ -41,7 +41,6 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const Dashboard = () => {
   const { uid, effectiveUid, linkedBarberId, businessId, isAdmin, mustChangePassword, refreshUserProfile } = useAuth();
-  const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('today'); // today, week, biweekly, upcoming

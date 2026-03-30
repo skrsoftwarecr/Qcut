@@ -8,13 +8,7 @@ import {
   findBarberAssignmentByEmail
 } from '../firebase/firestoreService';
 
-const AuthContext = createContext();
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth debe usarse dentro de AuthProvider');
-  return context;
-};
+export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);

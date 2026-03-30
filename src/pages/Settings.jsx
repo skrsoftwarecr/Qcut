@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
 import { format } from 'date-fns';
@@ -140,16 +140,16 @@ const Settings = () => {
   }, [barberData]);
 
   // CAMBIO 4: Cargar bloqueos
-  const loadBlocks = async () => {
+  const loadBlocks = useCallback(async () => {
     if (!effectiveUid) return;
     const filterId = isAdmin ? null : linkedBarberId;
     const res = await getBarberBlocks(effectiveUid, filterId);
     if (res.success) setMyBlocks(res.data);
-  };
+  }, [effectiveUid, isAdmin, linkedBarberId]);
 
   useEffect(() => {
     loadBlocks();
-  }, [effectiveUid, isAdmin, linkedBarberId, loadBlocks]);
+  }, [loadBlocks]);
 
   useEffect(() => {
     const loadBarberSchedule = async () => {
