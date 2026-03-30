@@ -1,5 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { GOOGLE_SCRIPT_URL } from '../config/constants';
 import {
   getBarberData,
   getScheduleConfig,
@@ -29,7 +31,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const BookingPage = () => {
   const { businessId } = useParams();
-  const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
+  const { user } = useAuth();
   const [barberData, setBarberData] = useState(null);
   const [scheduleConfig, setScheduleConfig] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -108,22 +110,21 @@ const BookingPage = () => {
   }, [barberData]);
 
   // Cargar citas existentes cuando se selecciona una fecha
-  useEffect(() => {
-    const loadAppointments = async () => {
-      if (selectedDate && businessId) {
-        const result = await getAppointmentsByDate(businessId, selectedDate);
-        if (result.success) {
-          // Solo considerar citas confirmadas y pendientes
-          const activeAppointments = result.data.filter(
-            apt => apt.status === 'pending' || apt.status === 'confirmed'
-          );
-          setExistingAppointments(activeAppointments);
-        }
+  const loadAppointments = useCallback(async () => {
+    if (selectedDate && businessId) {
+      const result = await getAppointmentsByDate(businessId, selectedDate);
+      if (result.success) {
+        const activeAppointments = result.data.filter(
+          apt => apt.status === 'pending' || apt.status === 'confirmed'
+        );
+        setExistingAppointments(activeAppointments);
       }
-    };
-
-    loadAppointments();
+    }
   }, [selectedDate, businessId]);
+
+  useEffect(() => {
+    loadAppointments();
+  }, [loadAppointments]);
 
   useEffect(() => {
     setSelectedTime(null);
