@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+echo "🚨 Ejecutando ESLint antes de push..."
+if ! npm run lint; then
+  echo "❌ Lint falló. Commit/Push cancelado."
+  exit 1
+fi

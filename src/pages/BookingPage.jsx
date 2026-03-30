@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
 import { GOOGLE_SCRIPT_URL } from '../config/constants';
 import {
   getBarberData,
@@ -31,7 +30,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const BookingPage = () => {
   const { businessId } = useParams();
-  const { user } = useAuth();
+
   const [barberData, setBarberData] = useState(null);
   const [scheduleConfig, setScheduleConfig] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -103,9 +102,9 @@ const BookingPage = () => {
     if (barberData?.barbers?.length) {
       const activeBarbers = barberData.barbers.filter((barber) => barber.active !== false);
       const defaultId = activeBarbers[0]?.id || barberData.barbers[0].id;
-      setSelectedBarberId((prev) => prev || defaultId);
+      setTimeout(() => setSelectedBarberId((prev) => prev || defaultId), 0);
     } else if (barberData && !barberData.barbers?.length) {
-      setSelectedBarberId('barber-1');
+      setTimeout(() => setSelectedBarberId('barber-1'), 0);
     }
   }, [barberData]);
 
@@ -123,15 +122,15 @@ const BookingPage = () => {
   }, [selectedDate, businessId]);
 
   useEffect(() => {
-    loadAppointments();
+    setTimeout(() => loadAppointments(), 0);
   }, [loadAppointments]);
 
   useEffect(() => {
-    setSelectedTime(null);
+    setTimeout(() => setSelectedTime(null), 0);
   }, [selectedBarberId]);
 
   useEffect(() => {
-    setSelectedTime(null);
+    setTimeout(() => setSelectedTime(null), 0);
   }, [selectedDate]);
 
   // Generar días del mes

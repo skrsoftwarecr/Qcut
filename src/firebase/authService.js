@@ -18,9 +18,9 @@ export const loginWithEmail = async (email, password) => {
     const normalizedPassword = (password || '').trim();
     const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, normalizedPassword);
     return { success: true, user: userCredential.user };
-  } catch (_err) {
+  } catch (error) {
     console.error('Error al iniciar sesión:', error);
-    let message = 'Error al iniciar sesión';
+    let message;
     
     switch (error.code) {
       case 'auth/user-not-found':
@@ -60,7 +60,7 @@ export const createBarberAuthAccount = async ({ email, temporaryPassword }) => {
     );
 
     return { success: true, uid: credential.user.uid };
-  } catch (_err) {
+  } catch (error) {
     let message = error.message || 'No se pudo crear la cuenta del barbero';
 
     if (error.code === 'auth/email-already-in-use') {
@@ -88,7 +88,7 @@ export const changeCurrentUserPassword = async (newPassword) => {
 
     await updatePassword(auth.currentUser, newPassword);
     return { success: true };
-  } catch (_err) {
+  } catch (error) {
     let message = error.message || 'No se pudo cambiar la contraseña';
 
     if (error.code === 'auth/weak-password') {
@@ -108,7 +108,7 @@ export const logout = async () => {
   try {
     await signOut(auth);
     return { success: true };
-  } catch (_err) {
+  } catch (error) {
     console.error('Error al cerrar sesión:', error);
     return { success: false, error: error.message };
   }

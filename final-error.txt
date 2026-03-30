@@ -1,0 +1,11 @@
+﻿
+> qcut@1.0.0 lint
+> eslint . --max-warnings 0
+
+
+C:\Users\kaile\Downloads\Qcut-main\src\pages\BookingPage.jsx
+  3:10  error  'useAuth' is defined but never used  unused-imports/no-unused-imports
+
+Ô£û 1 problem (1 error, 0 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+

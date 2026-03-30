@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useState, useEffect } from 'react';
 import { onAuthChange } from '../firebase/authService';
 import {
   getBarberData,
@@ -168,7 +169,7 @@ export const AuthProvider = ({ children }) => {
           setLinkedBarberId(null);
           setBusinessId(null);
         }
-      } catch (_err) {
+      } catch (error) {
         console.error("Auth initialization error:", error);
       } finally {
         setLoading(false);

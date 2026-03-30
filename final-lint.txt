@@ -1,0 +1,17 @@
+﻿
+> qcut@1.0.0 lint
+> eslint . --max-warnings 0
+
+
+C:\Users\kaile\Downloads\Qcut-main\src\contexts\AuthContext.jsx
+  11:14  warning  Fast refresh only works when a file only exports components. Move your React context(s) to a separate file  react-refresh/only-export-components
+
+C:\Users\kaile\Downloads\Qcut-main\src\firebase\authService.js
+  23:9  error  This assigned value is not used in subsequent statements  no-useless-assignment
+
+C:\Users\kaile\Downloads\Qcut-main\src\pages\BookingPage.jsx
+  3:10  error  'useAuth' is defined but never used  unused-imports/no-unused-imports
+
+Ô£û 3 problems (2 errors, 1 warning)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+

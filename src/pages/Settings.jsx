@@ -86,7 +86,7 @@ const Settings = () => {
   useEffect(() => {
     // Inicializar barberoId si es barbero
     if (!isAdmin && linkedBarberId) {
-      setNewBlock(prev => ({ ...prev, barberoId: linkedBarberId }));
+      setTimeout(() => setNewBlock(prev => ({ ...prev, barberoId: linkedBarberId })), 0);
     }
   }, [isAdmin, linkedBarberId]);
 
@@ -148,7 +148,7 @@ const Settings = () => {
   }, [effectiveUid, isAdmin, linkedBarberId]);
 
   useEffect(() => {
-    loadBlocks();
+    setTimeout(() => loadBlocks(), 0);
   }, [loadBlocks]);
 
   useEffect(() => {
