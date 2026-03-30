@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { GOOGLE_SCRIPT_URL } from '../config/constants';
 import {
   getAppointments,
   subscribeToAppointmentsRealtime,
