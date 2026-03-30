@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { logout } from '../firebase/authService';
 import toast from 'react-hot-toast';
 import { LogOut, Settings, User, Scissors } from 'lucide-react';
