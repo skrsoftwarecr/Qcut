@@ -1,3 +1,4 @@
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { GOOGLE_SCRIPT_URL } from '../config/constants';
 import {
@@ -807,7 +808,7 @@ const Dashboard = () => {
                               } else {
                                 toast.error('Error: ' + result.error);
                               }
-                            } catch (error) {
+                            } catch (_err) {
                               toast.error('Error reenviando email');
                             }
                           }}
