@@ -1,4 +1,23 @@
 [build]
-  base = "Qcut-main"
   command = "npm run build"
   publish = "dist"
+
+# Index HTML Headers
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    X-UA-Compatible = "IE=edge"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+    X-Content-Type-Options = "nosniff"
+
+# SPA Redirect - catch-all after all other routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+

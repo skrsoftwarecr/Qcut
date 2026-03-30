@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+assets/
+public/
+*.config.js
+functions/
+playwright-report/
+test-results/
+coverage/
+.netlify/
