@@ -12,6 +12,7 @@ function doPost(e) {
     const barberEmail = payload.barberEmail || '';
     const clientName = payload.clientName || '';
     const barberName = payload.barberName || '';
+    const businessName = payload.businessName || 'Qcut';
     const appointmentDate = payload.appointmentDate || '';
     const clientPhone = payload.clientPhone || '';
     const confirmationUrl = payload.confirmationUrl || '';
@@ -36,47 +37,47 @@ function doPost(e) {
     
     if (type === 'appointment_confirmation_needed') {
       // Email AL CLIENTE pidiendo que confirme la cita
-      subject = '¡Confirma tu cita con ' + barberName + '!';
+      subject = '¡Confirma tu cita en ' + businessName + '!';
       recipientEmail = clientEmail;
-      htmlBody = getClientConfirmationNeededEmail(clientName, barberName, dateStr, timeStr, confirmationUrl);
+      htmlBody = getClientConfirmationNeededEmail(clientName, barberName, dateStr, timeStr, confirmationUrl, businessName);
       Logger.log('Sending appointment_confirmation_needed to client: ' + recipientEmail);
       
     } else if (type === 'appointment_confirmed') {
-      subject = 'Cita Confirmada - ' + barberName;
+      subject = 'Cita Confirmada - ' + businessName;
       recipientEmail = clientEmail;
-      htmlBody = getClientConfirmedEmail(clientName, barberName, dateStr, timeStr);
+      htmlBody = getClientConfirmedEmail(clientName, barberName, dateStr, timeStr, businessName);
       Logger.log('Sending appointment_confirmed to client: ' + recipientEmail);
       
     } else if (type === 'appointment_auto_confirmed') {
-      subject = 'Nueva Cita Confirmada - ' + clientName;
+      subject = 'Nueva Cita Confirmada - ' + businessName;
       recipientEmail = barberEmail;
-      htmlBody = getBarberAutoConfirmedEmail(barberName, clientName, clientPhone, dateStr, timeStr);
+      htmlBody = getBarberAutoConfirmedEmail(barberName, clientName, clientPhone, dateStr, timeStr, businessName);
       Logger.log('Sending appointment_auto_confirmed to barber: ' + recipientEmail);
       
     } else if (type === 'appointment_pending_approval') {
-      subject = 'Nueva Cita Pendiente de Confirmacion - ' + clientName;
+      subject = 'Nueva Cita Pendiente de Confirmacion - ' + businessName;
       recipientEmail = barberEmail;
-      htmlBody = getBarberPendingApprovalEmail(barberName, clientName, clientPhone, dateStr, timeStr);
+      htmlBody = getBarberPendingApprovalEmail(barberName, clientName, clientPhone, dateStr, timeStr, businessName);
       Logger.log('Sending appointment_pending_approval to barber: ' + recipientEmail);
       
     } else if (type === 'appointment_rejected') {
-      subject = 'Cita Rechazada - ' + barberName;
+      subject = 'Cita Rechazada - ' + businessName;
       recipientEmail = clientEmail;
-      htmlBody = getClientRejectedEmail(clientName, barberName, dateStr, timeStr);
+      htmlBody = getClientRejectedEmail(clientName, barberName, dateStr, timeStr, businessName);
       Logger.log('Sending appointment_rejected to client: ' + recipientEmail);
       
     } else if (type === 'appointment_cancelled_by_admin') {
       // Email AL CLIENTE notificando que su cita fue cancelada
-      subject = 'Tu Cita Ha Sido Cancelada - ' + barberName;
+      subject = 'Tu Cita Ha Sido Cancelada - ' + businessName;
       recipientEmail = clientEmail;
-      htmlBody = getClientCancelledEmail(clientName, barberName, dateStr, timeStr);
+      htmlBody = getClientCancelledEmail(clientName, barberName, dateStr, timeStr, businessName);
       Logger.log('Sending appointment_cancelled_by_admin to client: ' + recipientEmail);
       
     } else if (type === 'appointment_rescheduled') {
       // Email AL CLIENTE notificando reprogramación y pidiendo nueva confirmación
-      subject = 'Tu Cita Ha Sido Reprogramada - ' + barberName;
+      subject = 'Tu Cita Ha Sido Reprogramada - ' + businessName;
       recipientEmail = clientEmail;
-      htmlBody = getClientRescheduleEmail(clientName, barberName, oldDateStr, newDateStr, newTimeStr, newConfirmationUrl);
+      htmlBody = getClientRescheduleEmail(clientName, barberName, oldDateStr, newDateStr, newTimeStr, newConfirmationUrl, businessName);
       Logger.log('Sending appointment_rescheduled to client: ' + recipientEmail);
       
     } else if (type === 'appointment_client_created') {
@@ -176,11 +177,11 @@ function formatTimeToString(appointmentDate) {
 // EMAIL TEMPLATES
 // ============================================
 
-function getClientConfirmationNeededEmail(clientName, barberName, date, time, confirmationUrl) {
+function getClientConfirmationNeededEmail(clientName, barberName, date, time, confirmationUrl, businessName) {
   const html = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">'
     + '<div style="background: #c41e3a; color: white; padding: 30px 20px; text-align: center;">'
-    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">Qcut</h1>'
-    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Sistema de Citas para Barberias</p>'
+    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">' + businessName + '</h1>'
+    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Citas Online | Qcut</p>'
     + '</div>'
     + '<div style="background: white; padding: 30px 20px; border: 1px solid #e5e5e5;">'
     + '<h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">¡Por favor, confirma tu cita!</h2>'
@@ -216,11 +217,11 @@ function getClientConfirmationNeededEmail(clientName, barberName, date, time, co
   return html;
 }
 
-function getClientConfirmedEmail(clientName, barberName, date, time) {
+function getClientConfirmedEmail(clientName, barberName, date, time, businessName) {
   const html = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">'
     + '<div style="background: #34c759; color: white; padding: 30px 20px; text-align: center;">'
-    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">Qcut</h1>'
-    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Sistema de Citas para Barberias</p>'
+    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">' + businessName + '</h1>'
+    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Citas Online | Qcut</p>'
     + '</div>'
     + '<div style="background: white; padding: 30px 20px; border: 1px solid #e5e5e5;">'
     + '<h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">¡Cita Confirmada!</h2>'
@@ -251,11 +252,11 @@ function getClientConfirmedEmail(clientName, barberName, date, time) {
   return html;
 }
 
-function getClientCancelledEmail(clientName, barberName, date, time) {
+function getClientCancelledEmail(clientName, barberName, date, time, businessName) {
   const html = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">'
     + '<div style="background: #ff3b30; color: white; padding: 30px 20px; text-align: center;">'
-    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">Qcut</h1>'
-    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Sistema de Citas para Barberias</p>'
+    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">' + businessName + '</h1>'
+    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Citas Online | Qcut</p>'
     + '</div>'
     + '<div style="background: white; padding: 30px 20px; border: 1px solid #e5e5e5;">'
     + '<h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">Tu Cita Ha Sido Cancelada</h2>'
@@ -286,11 +287,11 @@ function getClientCancelledEmail(clientName, barberName, date, time) {
   return html;
 }
 
-function getClientRescheduleEmail(clientName, barberName, oldDate, newDate, newTime, newConfirmationUrl) {
+function getClientRescheduleEmail(clientName, barberName, oldDate, newDate, newTime, newConfirmationUrl, businessName) {
   const html = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">'
     + '<div style="background: #ff9500; color: white; padding: 30px 20px; text-align: center;">'
-    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">Qcut</h1>'
-    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Sistema de Citas para Barberias</p>'
+    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">' + businessName + '</h1>'
+    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Citas Online | Qcut</p>'
     + '</div>'
     + '<div style="background: white; padding: 30px 20px; border: 1px solid #e5e5e5;">'
     + '<h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">Tu Cita Ha Sido Reprogramada</h2>'
@@ -321,11 +322,11 @@ function getClientRescheduleEmail(clientName, barberName, oldDate, newDate, newT
   return html;
 }
 
-function getBarberAutoConfirmedEmail(barberName, clientName, clientPhone, date,time) {
+function getBarberAutoConfirmedEmail(barberName, clientName, clientPhone, date, time, businessName) {
   const html = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">'
     + '<div style="background: #c41e3a; color: white; padding: 30px 20px; text-align: center;">'
-    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">Qcut</h1>'
-    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Sistema de Citas para Barberias</p>'
+    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">' + businessName + '</h1>'
+    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Citas Online | Qcut</p>'
     + '</div>'
     + '<div style="background: white; padding: 30px 20px; border: 1px solid #e5e5e5;">'
     + '<h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">Nueva Cita Confirmada Automaticamente</h2>'
@@ -358,11 +359,11 @@ function getBarberAutoConfirmedEmail(barberName, clientName, clientPhone, date,t
   return html;
 }
 
-function getBarberPendingApprovalEmail(barberName, clientName, clientPhone, date, time) {
+function getBarberPendingApprovalEmail(barberName, clientName, clientPhone, date, time, businessName) {
   const html = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">'
     + '<div style="background: #c41e3a; color: white; padding: 30px 20px; text-align: center;">'
-    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">Qcut</h1>'
-    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Sistema de Citas para Barberias</p>'
+    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">' + businessName + '</h1>'
+    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Citas Online | Qcut</p>'
     + '</div>'
     + '<div style="background: white; padding: 30px 20px; border: 1px solid #e5e5e5;">'
     + '<h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">Nueva Cita Esperando Confirmacion</h2>'
@@ -392,11 +393,11 @@ function getBarberPendingApprovalEmail(barberName, clientName, clientPhone, date
   return html;
 }
 
-function getClientRejectedEmail(clientName, barberName, date, time) {
+function getClientRejectedEmail(clientName, barberName, date, time, businessName) {
   const html = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">'
     + '<div style="background: #c41e3a; color: white; padding: 30px 20px; text-align: center;">'
-    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">Qcut</h1>'
-    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Sistema de Citas para Barberias</p>'
+    + '<h1 style="margin: 0; font-size: 28px; font-weight: bold;">' + businessName + '</h1>'
+    + '<p style="margin: 5px 0 0 0; font-size: 13px;">Citas Online | Qcut</p>'
     + '</div>'
     + '<div style="background: white; padding: 30px 20px; border: 1px solid #e5e5e5;">'
     + '<h2 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">Tu Cita Ha Sido Rechazada</h2>'

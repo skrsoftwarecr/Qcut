@@ -7,8 +7,6 @@ import {
   getAppointmentsByDate,
   createAppointment,
   getBarberBlocks,
-  getClientAppointmentsByPhone,
-  cancelAppointmentByClient,
   getAllBarberScheduleConfigs
 } from '../firebase/firestoreService';
 import toast from 'react-hot-toast';
@@ -22,7 +20,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  X
+  MapPin
 } from 'lucide-react';
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -54,13 +52,6 @@ const BookingPage = () => {
   const [existingAppointments, setExistingAppointments] = useState([]);
   const [allBlocks, setAllBlocks] = useState([]); // CAMBIO 2 & 3: Nueva colección bloqueos
   const [barberSchedules, setBarberSchedules] = useState({});
-  
-  // CAMBIO 5: Estado para cancelación de citas del cliente
-  const [showCancelSection, setShowCancelSection] = useState(false);
-  const [cancelPhone, setCancelPhone] = useState('');
-  const [clientAppointments, setClientAppointments] = useState([]);
-  const [cancelLoading, setCancelLoading] = useState(false);
-  const [cancellingId, setCancellingId] = useState(null);
   
   const [formData, setFormData] = useState({
     clientName: '',
@@ -392,7 +383,7 @@ const BookingPage = () => {
           businessName: barberData?.name || 'Qcut Barbería',
           appointmentStatus: appointmentData.status,
           confirmationUrl,
-          cancelUrl: window.location.href, // Link a la misma página de booking donde pueden buscar su número para cancelar
+          cancelUrl: confirmationUrl,
           appointmentDate: appointmentDate.getTime()
         };
 
@@ -482,11 +473,17 @@ const BookingPage = () => {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-primary mb-2">Qcut</h1>
-          <h2 className="text-2xl font-semibold text-primary mb-1">{barberData.name}</h2>
-          <p className="text-text-secondary">Agenda tu cita online</p>
+          <h1 className="text-5xl font-bold text-primary mb-1">{barberData.name}</h1>
+          <p className="text-sm text-text-secondary mb-4 font-medium">Citas Online | Qcut</p>
+          <p className="text-text-secondary mb-4">Agenda tu cita online</p>
+          {barberData.address && (
+            <p className="text-sm text-text-secondary flex items-center justify-center gap-2 mb-2">
+              <MapPin className="w-4 h-4" />
+              {barberData.address}
+            </p>
+          )}
           {barberData.phone && (
-            <p className="text-sm text-text-secondary mt-2 flex items-center justify-center gap-2">
+            <p className="text-sm text-text-secondary flex items-center justify-center gap-2">
               <Phone className="w-4 h-4" />
               {barberData.phone}
             </p>
@@ -738,96 +735,6 @@ const BookingPage = () => {
             </button>
           )}
         </form>
-
-        {/* CAMBIO 5: Sección de Cancelación de Citas */}
-        <div className="card mt-6">
-          <button
-            type="button"
-            onClick={() => setShowCancelSection(p => !p)}
-            className="w-full flex items-center justify-between text-left"
-          >
-            <span className="font-semibold text-primary flex items-center gap-2">
-              <X className="w-5 h-5 text-danger" />
-              ¿Necesitas cancelar tu cita?
-            </span>
-            <span className="text-text-secondary text-sm">{showCancelSection ? 'Cerrar ▲' : 'Ver ▼'}</span>
-          </button>
-
-          {showCancelSection && (
-            <div className="mt-4 border-t border-border pt-4">
-              <p className="text-text-secondary text-sm mb-4">
-                Ingresa tu número de teléfono para buscar tus citas activas y cancelarlas.
-              </p>
-              <div className="flex gap-3 mb-4">
-                <div className="relative flex-1">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary w-5 h-5" />
-                  <input
-                    type="tel"
-                    value={cancelPhone}
-                    onChange={e => setCancelPhone(e.target.value)}
-                    className="input pl-11"
-                    placeholder="+1 555 000 0000"
-                  />
-                </div>
-                <button
-                  type="button"
-                  disabled={cancelLoading || !cancelPhone.trim()}
-                  onClick={async () => {
-                    setCancelLoading(true);
-                    const result = await getClientAppointmentsByPhone(businessId, cancelPhone);
-                    setCancelLoading(false);
-                    if (result.success) {
-                      setClientAppointments(result.data);
-                      if (result.data.length === 0) toast.error('No se encontraron citas activas para ese teléfono');
-                    } else {
-                      toast.error('Error al buscar citas');
-                    }
-                  }}
-                  className="btn-secondary whitespace-nowrap"
-                >
-                  {cancelLoading ? 'Buscando...' : 'Buscar citas'}
-                </button>
-              </div>
-
-              {clientAppointments.length > 0 && (
-                <div className="space-y-3">
-                  {clientAppointments.map(apt => (
-                    <div key={apt.id} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-elegant">
-                      <div>
-                        <p className="font-semibold text-primary text-sm">{apt.barberName}</p>
-                        <p className="text-text-secondary text-xs">
-                          {apt.date.toLocaleDateString('es', { weekday:'long', day:'numeric', month:'long' })} · {apt.date.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' })}
-                        </p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          apt.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
-                        }`}>{apt.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}</span>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={cancellingId === apt.id}
-                        onClick={async () => {
-                          setCancellingId(apt.id);
-                          const result = await cancelAppointmentByClient(businessId, apt.id, apt);
-                          if (result.success) {
-                            toast.success('Cita cancelada exitosamente');
-                            setClientAppointments(prev => prev.filter(a => a.id !== apt.id));
-                          } else {
-                            toast.error('Error al cancelar la cita');
-                          }
-                          setCancellingId(null);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded transition-all disabled:opacity-50"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        {cancellingId === apt.id ? 'Cancelando...' : 'Cancelar'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { confirmAppointmentByToken, cancelAppointmentByToken, getAppointmentByConfirmationToken } from '../firebase/appointmentConfirmation';
+import { getBarberData } from '../firebase/firestoreService';
 import { Check, X, Clock, User, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -14,6 +15,7 @@ const ConfirmAppointment = () => {
   const businessId = searchParams.get('b') || searchParams.get('businessId') || '';
 
   const [appointment, setAppointment] = useState(null);
+  const [businessData, setBusinessData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -35,6 +37,14 @@ const ConfirmAppointment = () => {
         if (result.success) {
           setAppointment(result.data);
           setError(null);
+          
+          // Cargar datos de la barbería
+          if (businessId) {
+            const businessResult = await getBarberData(businessId);
+            if (businessResult.success) {
+              setBusinessData(businessResult.data);
+            }
+          }
         } else {
           setError(result.error || 'No se pudo cargar la cita');
           setAppointment(null);
@@ -108,13 +118,20 @@ const ConfirmAppointment = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-success/10 to-success/5 flex items-center justify-center p-4">
         <div className="bg-white rounded-elegant shadow-2xl p-8 sm:p-12 max-w-md w-full text-center">
+          {businessData && (
+            <div className="mb-6 pb-6 border-b border-border">
+              <p className="text-sm text-text-secondary mb-1">Cita en</p>
+              <h1 className="text-2xl font-bold text-primary">{businessData.name}</h1>
+            </div>
+          )}
+          
           <div className="mb-6 flex justify-center">
             <div className="w-20 h-20 bg-success/10 rounded-full flex items-center justify-center">
               <Check className="w-10 h-10 text-success" />
             </div>
           </div>
           
-          <h1 className="text-3xl font-bold text-primary mb-2">¡Confirmado!</h1>
+          <h2 className="text-3xl font-bold text-primary mb-2">¡Confirmado!</h2>
           <p className="text-text-secondary mb-6">
             Tu cita ha sido confirmada correctamente. El barbero ha recibido la notificación.
           </p>
@@ -148,6 +165,13 @@ const ConfirmAppointment = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-danger/10 to-danger/5 flex items-center justify-center p-4">
         <div className="bg-white rounded-elegant shadow-2xl p-8 sm:p-12 max-w-md w-full text-center">
+          {businessData && (
+            <div className="mb-6 pb-6 border-b border-border">
+              <p className="text-sm text-text-secondary mb-1">Cita en</p>
+              <h2 className="text-2xl font-bold text-primary">{businessData.name}</h2>
+            </div>
+          )}
+          
           <div className="mb-6 flex justify-center">
             <div className="w-20 h-20 bg-danger/10 rounded-full flex items-center justify-center">
               <X className="w-10 h-10 text-danger" />
@@ -230,8 +254,15 @@ const ConfirmAppointment = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center p-4">
       <div className="bg-white rounded-elegant shadow-2xl p-8 sm:p-12 max-w-md w-full">
+        {businessData && (
+          <div className="text-center mb-8 pb-6 border-b border-border">
+            <h1 className="text-3xl font-bold text-primary mb-1">{businessData.name}</h1>
+            <p className="text-sm text-text-secondary">Confirmación de Cita</p>
+          </div>
+        )}
+        
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">Revisar Cita</h1>
+          <h2 className="text-2xl font-bold text-primary mb-2">Revisar Cita</h2>
           <p className="text-text-secondary">Revisa los detalles y elige confirmar o cancelar</p>
         </div>
 
