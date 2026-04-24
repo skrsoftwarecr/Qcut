@@ -41,7 +41,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const Dashboard = () => {
   const { uid, user, effectiveUid, linkedBarberId, businessId, barberData, isAdmin, mustChangePassword, refreshUserProfile } = useAuth();
-  const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycby3zwVNyOWyvvq4VNkscvNzqCvcvRpAjJAFdqmb4bi43r2ACJR5VPtSS9dJFz1VZeCq/exec';
+  const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL;
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('today'); // today, week, biweekly, upcoming

@@ -30,7 +30,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const BookingPage = () => {
   const { businessId } = useParams();
-  const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycby3zwVNyOWyvvq4VNkscvNzqCvcvRpAjJAFdqmb4bi43r2ACJR5VPtSS9dJFz1VZeCq/exec';
+  const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL;
   const [barberData, setBarberData] = useState(null);
   const [scheduleConfig, setScheduleConfig] = useState(null);
   const [loading, setLoading] = useState(true);
