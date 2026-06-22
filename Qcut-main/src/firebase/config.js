@@ -13,6 +13,17 @@ export const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// Debug helper: warn if critical env vars are missing at runtime (helps detect Netlify misconfig)
+if (typeof window !== 'undefined') {
+  const missing = [];
+  if (!firebaseConfig.projectId) missing.push('VITE_FIREBASE_PROJECT_ID');
+  if (!firebaseConfig.apiKey) missing.push('VITE_FIREBASE_API_KEY');
+  if (missing.length) {
+    // eslint-disable-next-line no-console
+    console.warn('Firebase config incomplete. Missing env vars:', missing.join(', '));
+  }
+}
+
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
 
