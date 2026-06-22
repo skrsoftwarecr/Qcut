@@ -10,6 +10,7 @@ const Login = () => {
     email: '',
     password: ''
   });
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -38,7 +39,7 @@ const Login = () => {
     if (!validateForm()) return;
 
     setLoading(true);
-    const result = await loginWithEmail(formData.email, formData.password);
+    const result = await loginWithEmail(formData.email, formData.password, rememberMe);
     
     if (result.success) {
       toast.success('Inicio de sesión exitoso');
@@ -142,6 +143,19 @@ const Login = () => {
                 {errors.password && (
                   <p className="mt-2 text-sm text-red-600 font-medium">{errors.password}</p>
                 )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                />
+                <label htmlFor="rememberMe" className="text-sm text-gray-700">
+                  Recuérdame
+                </label>
               </div>
 
               {/* Submit button */}

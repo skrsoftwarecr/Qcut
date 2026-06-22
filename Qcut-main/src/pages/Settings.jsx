@@ -642,15 +642,15 @@ const Settings = () => {
 
         <div className="space-y-6">
           {/* URL de Reserva y QR */}
-          {isAdmin && (
+          {effectiveUid && (
           <div className="card">
             <h3 className="text-xl font-semibold text-primary mb-4 flex items-center gap-2">
               <Link className="w-5 h-5" />
-              URL de Reservas
+              Enlace de Reservas
             </h3>
             
             <p className="text-text-secondary mb-4 text-sm">
-              Comparte esta URL con tus clientes para que puedan agendar citas online
+              Copia este enlace para compartirlo con tus clientes y que reserven online.
             </p>
 
             <div className="flex gap-3 mb-6">
@@ -683,7 +683,7 @@ const Settings = () => {
                 </div>
                 <div className="flex-1">
                   <p className="text-text-secondary text-sm mb-4">
-                    Descarga este código QR para imprimirlo en tu local. Tus clientes pueden escanearlo para reservar citas.
+                    Descarga este código QR para imprimirlo o enviarlo a tus clientes.
                   </p>
                   <button
                     onClick={handleDownloadQR}

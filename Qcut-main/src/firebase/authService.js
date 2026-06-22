@@ -4,7 +4,10 @@ import {
   updatePassword,
   signOut, 
   onAuthStateChanged,
-  getAuth
+  getAuth,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 import { deleteApp, initializeApp } from 'firebase/app';
 import { auth, firebaseConfig } from './config';
@@ -12,10 +15,13 @@ import { auth, firebaseConfig } from './config';
 /**
  * Inicia sesión con email y contraseña
  */
-export const loginWithEmail = async (email, password) => {
+export const loginWithEmail = async (email, password, rememberMe = false) => {
   try {
     const normalizedEmail = (email || '').trim().toLowerCase();
     const normalizedPassword = (password || '').trim();
+    const persistence = rememberMe ? browserLocalPersistence : browserSessionPersistence;
+
+    await setPersistence(auth, persistence);
     const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, normalizedPassword);
     return { success: true, user: userCredential.user };
   } catch (error) {

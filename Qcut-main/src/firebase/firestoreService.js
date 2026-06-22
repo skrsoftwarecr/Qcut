@@ -508,15 +508,27 @@ export const getBarberBlocks = async (uid, barberId = null) => {
     }
 
     const blocks = [];
+    const oldBlocksToDelete = [];
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
     snapshot.forEach(d => {
       const data = d.data();
       const fecha = data.fecha?.toDate ? data.fecha.toDate() : (data.fecha ? new Date(data.fecha) : new Date());
+      if (fecha < oneWeekAgo) {
+        oldBlocksToDelete.push(d.ref);
+        return;
+      }
       blocks.push({ 
         id: d.id, 
         ...data, 
         fecha
       });
     });
+
+    if (oldBlocksToDelete.length) {
+      await Promise.all(oldBlocksToDelete.map((docRef) => deleteDoc(docRef)));
+    }
     
     // Filtra por barberId si es necesario (fallback para índice)
     if (barberId) {
