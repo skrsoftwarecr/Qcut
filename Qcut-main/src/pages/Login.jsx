@@ -78,7 +78,7 @@ const Login = () => {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-1">Qcut</h1>
-          <p className="text-gray-500 text-sm">Gestión de citas para barberías</p>
+          <p className="text-gray-500 text-sm">Gestión de citas para tu negocio</p>
         </div>
 
         {/* Card de login minimalista */}
@@ -186,7 +186,7 @@ const Login = () => {
 
         {/* Footer */}
         <p className="text-center text-gray-500 text-xs mt-6">
-          Gestión profesional de citas para barberías
+          Gestión profesional de citas online
         </p>
       </div>
     </div>

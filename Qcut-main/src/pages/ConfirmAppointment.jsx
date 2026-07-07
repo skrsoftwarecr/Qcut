@@ -113,16 +113,16 @@ const ConfirmAppointment = () => {
             </div>
           </div>
           
-          <h1 className="text-3xl font-bold text-primary mb-2">¡Confirmado!</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">¡Confirmado!</h1>
           <p className="text-text-secondary mb-6">
-            Tu cita ha sido confirmada correctamente. El barbero ha recibido la notificación.
+            Tu cita ha sido confirmada correctamente. El equipo ha recibido la notificación.
           </p>
 
           {appointment && (
             <div className="bg-gray-50 rounded-elegant p-4 text-left">
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Barbero:</span>
+                  <span className="text-text-secondary">Profesional:</span>
                   <span className="font-semibold text-primary">{appointment.barberName}</span>
                 </div>
                 <div className="flex justify-between">
@@ -155,14 +155,14 @@ const ConfirmAppointment = () => {
 
           <h1 className="text-3xl font-bold text-danger mb-2">Cita Cancelada</h1>
           <p className="text-text-secondary mb-6">
-            Tu cita ha sido cancelada. El barbero ha sido notificado.
+            Tu cita ha sido cancelada. El equipo ha sido notificado.
           </p>
 
           {appointment && (
             <div className="bg-gray-50 rounded-elegant p-4 text-left">
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Barbero:</span>
+                  <span className="text-text-secondary">Profesional:</span>
                   <span className="font-semibold text-primary">{appointment.barberName}</span>
                 </div>
                 <div className="flex justify-between">
@@ -204,7 +204,7 @@ const ConfirmAppointment = () => {
                 <ul className="list-disc list-inside space-y-1 text-xs">
                   <li>Verifica que el enlace sea correcto</li>
                   <li>Los enlaces expiran después de 14 días</li>
-                  <li>Contacta al barbero para solicitar un nuevo enlace</li>
+                  <li>Contacta al negocio para solicitar un nuevo enlace</li>
                 </ul>
               </div>
             </div>
@@ -238,7 +238,7 @@ const ConfirmAppointment = () => {
           <div className="flex items-center gap-3 pb-4 border-b border-border">
             <User className="w-5 h-5 text-primary" />
             <div className="text-left">
-              <p className="text-xs text-text-secondary">Barbero</p>
+              <p className="text-xs text-text-secondary">Profesional</p>
               <p className="font-semibold text-primary">{appointment.barberName}</p>
             </div>
           </div>

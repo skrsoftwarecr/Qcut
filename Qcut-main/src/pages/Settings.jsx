@@ -216,7 +216,7 @@ const Settings = () => {
   // CAMBIO 4: Agregar un bloqueo
   const handleAddBlock = async () => {
     if (!effectiveUid) {
-      toast.error('No se pudo determinar la barbería para guardar el bloqueo');
+      toast.error('No se pudo determinar el negocio para guardar el bloqueo');
       return;
     }
     if (newBlock.tipo === 'horas_especificas' && newBlock.horaInicio >= newBlock.horaFin) {
@@ -224,11 +224,11 @@ const Settings = () => {
       return;
     }
     if (!newBlock.barberoId && isAdmin) {
-      toast.error('Selecciona un barbero para el bloqueo');
+      toast.error('Selecciona un profesional para el bloqueo');
       return;
     }
     if (!isAdmin && !linkedBarberId) {
-      toast.error('Tu perfil de barbero no está vinculado correctamente. Cierra sesión e inicia nuevamente.');
+      toast.error('Tu perfil de profesional no está vinculado correctamente. Cierra sesión e inicia nuevamente.');
       return;
     }
 
@@ -352,14 +352,14 @@ const Settings = () => {
       .filter((barber) => barber.name.length > 0);
 
     if (sanitizedBarbers.length === 0) {
-      toast.error('Debes tener al menos un barbero');
+      toast.error('Debes tener al menos un profesional');
       setSaving(false);
       return false;
     }
 
     const activeBarbers = sanitizedBarbers.filter((barber) => barber.active);
     if (activeBarbers.length === 0) {
-      toast.error('Debe existir al menos un barbero activo');
+      toast.error('Debe existir al menos un profesional activo');
       setSaving(false);
       return false;
     }
@@ -552,13 +552,13 @@ const Settings = () => {
         barberUid: authResult.uid
       });
       
-      toast.success(`Barbero creado con acceso temporal: ${newBarberName}`);
+      toast.success(`Profesional creado con acceso temporal: ${newBarberName}`);
       
       // Limpiar formulario
       setNewBarberName('');
       setNewBarberEmail('');
     } else {
-      toast.error('Error al añadir barbero: ' + saveResult.error);
+      toast.error('Error al añadir profesional: ' + saveResult.error);
     }
     setIsRegisteringAccount(false);
   };
@@ -601,7 +601,7 @@ const Settings = () => {
 
   const handleRemoveBarber = (id) => {
     if (settings.barbers.length <= 1) {
-      toast.error('Debe existir al menos un barbero');
+      toast.error('Debe existir al menos un profesional');
       return;
     }
     setSettings(prev => ({
@@ -704,7 +704,7 @@ const Settings = () => {
             <div className="card">
               <h3 className="text-xl font-semibold text-primary mb-6 flex items-center gap-2">
                 <User className="w-5 h-5" />
-                Perfil de la Barbería
+                Perfil del Negocio
               </h3>
 
               <div className="space-y-5">
@@ -718,7 +718,7 @@ const Settings = () => {
                   value={settings.name}
                   onChange={(e) => setSettings(prev => ({ ...prev, name: e.target.value }))}
                   className="input"
-                  placeholder="Mi Barbería"
+                  placeholder="Mi Negocio"
                   required
                 />
               </div>
@@ -765,7 +765,7 @@ const Settings = () => {
           <div className="card">
             <h3 className="text-xl font-semibold text-primary mb-6 flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Barberos de la Barbería
+              Equipo del Negocio
             </h3>
 
             <div className="space-y-4">
@@ -774,7 +774,7 @@ const Settings = () => {
                     type="text"
                     value={newBarberName}
                     onChange={(e) => setNewBarberName(e.target.value)}
-                    placeholder="Nombre del barbero"
+                    placeholder="Nombre del profesional"
                     className="input"
                     disabled={isRegisteringAccount}
                   />
@@ -792,11 +792,11 @@ const Settings = () => {
                     disabled={isRegisteringAccount}
                     className="btn-primary flex items-center justify-center gap-2"
                   >
-                    {isRegisteringAccount ? <LoadingSpinner size="small" /> : <><Plus className="w-4 h-4" /> Añadir Barbero</>}
+                    {isRegisteringAccount ? <LoadingSpinner size="small" /> : <><Plus className="w-4 h-4" /> Añadir Profesional</>}
                   </button>
                 </div>
                 <p className="text-[10px] text-text-secondary mt-1">
-                  * Al agregar un barbero se crea su cuenta de acceso con contraseña temporal.
+                  * Al agregar un profesional se crea su cuenta de acceso con contraseña temporal.
                 </p>
             </div>
 
@@ -809,20 +809,20 @@ const Settings = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="label">
-                          Barbero {index + 1}
+                          Profesional {index + 1}
                         </label>
                         <input
                           type="text"
                           value={barber.name}
                           onChange={(e) => handleUpdateBarberName(barber.id, e.target.value)}
                           className="input"
-                          placeholder="Nombre del barbero"
+                          placeholder="Nombre del profesional"
                           required
                         />
                       </div>
                       <div>
                         <label className="label">
-                          Email del barbero
+                          Email del profesional
                         </label>
                         <div className="relative">
                           <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-secondary w-5 h-5" />
@@ -831,7 +831,7 @@ const Settings = () => {
                             value={barber.email || ''}
                             onChange={(e) => handleUpdateBarberEmail(barber.id, e.target.value)}
                             className="input pl-11"
-                            placeholder="barbero@email.com"
+                            placeholder="profesional@email.com"
                           />
                         </div>
                       </div>
@@ -908,7 +908,7 @@ const Settings = () => {
               </div>
 
               <p className="text-sm text-text-secondary">
-                Debe existir al menos un barbero activo. Los clientes podrán elegir su barbero al reservar.
+                Debe existir al menos un profesional activo. Los clientes podrán elegir su profesional al reservar.
                 El auto-aceptar confirma automáticamente las citas que respeten disponibilidad.
               </p>
             </div>
@@ -957,13 +957,13 @@ const Settings = () => {
 
                 {isAdmin && (
                   <div>
-                    <label className="label">Barbero</label>
+                    <label className="label">Profesional</label>
                     <select
                       value={newBlock.barberoId}
                       onChange={e => setNewBlock(p => ({ ...p, barberoId: e.target.value }))}
                       className="input"
                     >
-                      <option value="">Selecciona barbero</option>
+                      <option value="">Selecciona profesional</option>
                       {settings.barbers.map(b => (
                         <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
@@ -1040,7 +1040,7 @@ const Settings = () => {
                           </p>
                           <p className="text-xs text-text-secondary">
                             {block.tipo === 'dia_completo' ? 'Todo el día' : `${block.horaInicio} - ${block.horaFin}`}
-                            {isAdmin && block.barberId && ` · ${settings.barbers?.find(b => b.id === block.barberId)?.name || 'Barbero'}`}
+                            {isAdmin && block.barberId && ` · ${settings.barbers?.find(b => b.id === block.barberId)?.name || 'Profesional'}`}
                           </p>
                           {block.motivo && <p className="text-xs italic text-gray-500 mt-1">"{block.motivo}"</p>}
                         </div>

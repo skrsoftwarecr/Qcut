@@ -181,14 +181,14 @@ const Dashboard = () => {
     const createdAt = notif.createdAt?.toDate ? notif.createdAt.toDate() : new Date();
 
     if (notif.type === 'appointment_cancelled_by_client') {
-      const message = `${notif.clientName} canceló su cita con ${notif.barberName || 'el barbero'}`;
+      const message = `${notif.clientName} canceló su cita con ${notif.barberName || 'el profesional'}`;
       toast.error(`❌ ${message}`, { duration: 7000, id: notif.id });
       setActivityFeed((prev) => [{ id: notif.id, type: notif.type, message, createdAt }, ...prev].slice(0, 8));
       return;
     }
 
     if (notif.type === 'appointment_confirmed_by_client') {
-      const message = `${notif.clientName} confirmó su cita con ${notif.barberName || 'el barbero'}`;
+      const message = `${notif.clientName} confirmó su cita con ${notif.barberName || 'el profesional'}`;
       toast.success(`✅ ${message}`, { duration: 7000, id: notif.id });
       setActivityFeed((prev) => [{ id: notif.id, type: notif.type, message, createdAt }, ...prev].slice(0, 8));
       return;
@@ -612,10 +612,10 @@ const Dashboard = () => {
                 <div className="space-y-2">
                   {clientDecisionSummary.confirmedByClient.slice(0, 6).map((apt) => (
                     <div key={`confirmed-${apt.id}`} className="bg-white border border-green-200 rounded p-2">
-                      <p className="text-sm font-medium text-gray-900">{apt.clientName || 'Cliente'}</p>
-                      <p className="text-xs text-gray-600">
-                        {apt.barberName || 'Barbero'} · {format(apt.date, "d 'de' MMM, HH:mm", { locale: es })}
-                      </p>
+                       <p className="text-sm font-medium text-gray-900">{apt.clientName || 'Cliente'}</p>
+                       <p className="text-xs text-gray-600">
+                         {apt.barberName || 'Profesional'} · {format(apt.date, "d 'de' MMM, HH:mm", { locale: es })}
+                       </p>
                     </div>
                   ))}
                 </div>
@@ -630,10 +630,10 @@ const Dashboard = () => {
                 <div className="space-y-2">
                   {clientDecisionSummary.cancelledByClient.slice(0, 6).map((apt) => (
                     <div key={`cancelled-${apt.id}`} className="bg-white border border-red-200 rounded p-2">
-                      <p className="text-sm font-medium text-gray-900">{apt.clientName || 'Cliente'}</p>
-                      <p className="text-xs text-gray-600">
-                        {apt.barberName || 'Barbero'} · {format(apt.date, "d 'de' MMM, HH:mm", { locale: es })}
-                      </p>
+                       <p className="text-sm font-medium text-gray-900">{apt.clientName || 'Cliente'}</p>
+                       <p className="text-xs text-gray-600">
+                         {apt.barberName || 'Profesional'} · {format(apt.date, "d 'de' MMM, HH:mm", { locale: es })}
+                       </p>
                     </div>
                   ))}
                 </div>
@@ -952,7 +952,7 @@ const Dashboard = () => {
                   <div>
                     <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2 pb-3 border-b-2 border-orange-500">
                       <AlertCircle className="w-5 h-5 text-orange-600" />
-                      Pendientes de Aprobación (Barbero)
+                      Pendientes de Aprobación
                       <span className="ml-2 px-2.5 py-1 bg-orange-500 text-white text-xs rounded-full font-semibold">{groupedAppointments.pending.length}</span>
                     </h3>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1079,7 +1079,7 @@ const Dashboard = () => {
                         <p className="text-base font-semibold text-gray-900">{apt.clientName}</p>
                         <p className="text-sm text-gray-600">{format(apt.date, "EEEE d 'de' MMMM, HH:mm", { locale: es })}</p>
                         {apt.barberName && (
-                          <p className="text-sm text-gray-600">Barbero: {apt.barberName}</p>
+                          <p className="text-sm text-gray-600">Profesional: {apt.barberName}</p>
                         )}
                         <div className="pt-1">
                           {(apt.confirmationStatus || 'pending') === 'confirmed' ? (

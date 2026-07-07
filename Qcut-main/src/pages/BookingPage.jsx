@@ -323,7 +323,7 @@ const BookingPage = () => {
       notes: formData.notes.trim(),
       date: appointmentDate,
       barberId: selectedBarberId,
-      barberName: selectedBarber?.name || 'Barbero',
+      barberName: selectedBarber?.name || 'Profesional',
       // Usar email del barbero individual, si no existe usar del negocio
       barberEmail: selectedBarber?.email || barberData?.email || ''
     };
@@ -348,7 +348,7 @@ const BookingPage = () => {
         fetch(GOOGLE_SCRIPT_URL, {
           method: 'POST',
           body: JSON.stringify(barberPayload)
-        }).catch(error => console.error('Error notificando barbero:', error));
+        }).catch(error => console.error('Error notificando profesional:', error));
       }
 
       // CAMBIO BUG 3: Notificar al cliente con su confirmación y link de cancelación
@@ -359,7 +359,7 @@ const BookingPage = () => {
           clientEmail: appointmentData.clientEmail,
           clientName: appointmentData.clientName,
           barberName: appointmentData.barberName,
-          businessName: barberData?.name || 'Qcut Barbería',
+          businessName: barberData?.name || 'Qcut',
           cancelUrl: window.location.href, // Link a la misma página de booking donde pueden buscar su número para cancelar
           appointmentDate: appointmentDate.toISOString()
         };
@@ -374,7 +374,7 @@ const BookingPage = () => {
       setSuccess(true);
       const statusMessage = isAutoAccepted
         ? '¡Cita confirmada automáticamente!'
-        : '¡Cita agendada! El barbero la revisará pronto.';
+        : '¡Cita agendada! El equipo la revisará pronto.';
       toast.success(statusMessage);
       
       // Reset form
@@ -405,7 +405,7 @@ const BookingPage = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-primary mb-2">Barbería no encontrada</h2>
+          <h2 className="text-2xl font-bold text-primary mb-2">Negocio no encontrado</h2>
           <p className="text-text-secondary">Verifica el enlace e intenta nuevamente</p>
         </div>
       </div>
@@ -429,7 +429,7 @@ const BookingPage = () => {
           <p className="text-text-secondary mb-6">
             {isAutoAccepted 
               ? 'Tu cita ha sido confirmada automáticamente. ¡Te esperamos!' 
-              : 'Tu cita ha sido registrada exitosamente. El barbero la confirmará pronto.'}
+              : 'Tu cita ha sido registrada exitosamente. El equipo la confirmará pronto.'}
           </p>
           <button
             onClick={() => {
@@ -462,31 +462,31 @@ const BookingPage = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Selección de barbero */}
-          <div className="card">
-            <h3 className="text-lg font-semibold text-primary mb-4 flex items-center gap-2">
-              <User className="w-5 h-5" />
-              Selecciona un Barbero
-            </h3>
+        {/* Selección de barbero */}
+        <div className="card">
+          <h3 className="text-lg font-semibold text-primary mb-4 flex items-center gap-2">
+            <User className="w-5 h-5" />
+            Selecciona un Profesional
+          </h3>
 
-            {barberData?.barbers?.length && barberData.barbers.filter((barber) => barber.active !== false).length === 0 ? (
-              <p className="text-sm text-danger">
-                No hay barberos activos disponibles. Intenta más tarde.
-              </p>
-            ) : (
-            <select
-              value={selectedBarberId}
-              onChange={(e) => setSelectedBarberId(e.target.value)}
-              className="input"
-              aria-label="Selecciona un barbero"
-              required
-            >
-              <option value="" disabled>Selecciona un barbero</option>
-              {(barberData?.barbers?.length ? barberData.barbers.filter((barber) => barber.active !== false) : [{ id: 'barber-1', name: 'Barbero 1' }]).map((barber) => (
-                <option key={barber.id} value={barber.id}>{barber.name}</option>
-              ))}
-            </select>
-            )}
+          {barberData?.barbers?.length && barberData.barbers.filter((barber) => barber.active !== false).length === 0 ? (
+            <p className="text-sm text-danger">
+              No hay profesionales activos disponibles. Intenta más tarde.
+            </p>
+          ) : (
+          <select
+            value={selectedBarberId}
+            onChange={(e) => setSelectedBarberId(e.target.value)}
+            className="input"
+            aria-label="Selecciona un profesional"
+            required
+          >
+            <option value="" disabled>Selecciona un profesional</option>
+            {(barberData?.barbers?.length ? barberData.barbers.filter((barber) => barber.active !== false) : [{ id: 'barber-1', name: 'Profesional 1' }]).map((barber) => (
+              <option key={barber.id} value={barber.id}>{barber.name}</option>
+            ))}
+          </select>
+          )}
 
             {errors.barber && (
               <p className="mt-2 text-sm text-danger">{errors.barber}</p>
