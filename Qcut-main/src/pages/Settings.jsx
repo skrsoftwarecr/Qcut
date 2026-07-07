@@ -1195,6 +1195,7 @@ const Settings = () => {
                   {savingBarberSchedule ? <LoadingSpinner size="small" /> : <Save className="w-5 h-5" />}
                   Guardar Mi Horario
                 </button>
+              </div>
             </div>
           </div>
           </>
