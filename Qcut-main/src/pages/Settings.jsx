@@ -157,9 +157,21 @@ const Settings = () => {
 
   useEffect(() => {
     const loadBarberSchedule = async () => {
-      if (isAdmin || !effectiveUid || !linkedBarberId) return;
+      if (!effectiveUid) return;
+      
+      // Si es admin, su barberId se puede deducir de barberData (el que coincida con su uid)
+      // Si no, usamos linkedBarberId.
+      let targetBarberId = null;
+      if (isAdmin) {
+        const myProfile = barberData?.barbers?.find(b => b.uid === uid);
+        targetBarberId = myProfile?.id;
+      } else {
+        targetBarberId = linkedBarberId;
+      }
+      
+      if (!targetBarberId) return;
 
-      const result = await getBarberScheduleConfig(effectiveUid, linkedBarberId);
+      const result = await getBarberScheduleConfig(effectiveUid, targetBarberId);
       if (result.success) {
         setBarberSchedule({
           openingTime: result.data.openingTime || '09:00',
@@ -184,7 +196,7 @@ const Settings = () => {
     };
 
     loadBarberSchedule();
-  }, [isAdmin, effectiveUid, linkedBarberId, barberData]);
+  }, [isAdmin, effectiveUid, linkedBarberId, barberData, uid]);
 
   useEffect(() => {
     const loadBarberPasswordStatus = async () => {
@@ -428,7 +440,21 @@ const Settings = () => {
   };
 
   const handleSaveBarberSchedule = async () => {
-    if (isAdmin || !effectiveUid || !linkedBarberId) return;
+    if (!effectiveUid) return;
+    
+    let targetBarberId = null;
+    if (isAdmin) {
+      const myProfile = barberData?.barbers?.find(b => b.uid === uid);
+      targetBarberId = myProfile?.id;
+    } else {
+      targetBarberId = linkedBarberId;
+    }
+
+    if (!targetBarberId) {
+      toast.error('No se pudo identificar tu ID de profesional');
+      return;
+    }
+
     if (barberSchedule.openingTime >= barberSchedule.closingTime) {
       toast.error('La hora de apertura debe ser menor a la de cierre');
       return;
@@ -452,13 +478,15 @@ const Settings = () => {
 
     // Auto-repara el perfil del barbero para cumplir reglas de seguridad
     // en /barbers/{businessId}/barberConfigs/{barberId}.
-    await setUserProfile(uid, {
-      role: 'barber',
-      businessId: effectiveUid,
-      barberId: linkedBarberId
-    });
+    if (!isAdmin) {
+      await setUserProfile(uid, {
+        role: 'barber',
+        businessId: effectiveUid,
+        barberId: linkedBarberId
+      });
+    }
 
-    const result = await upsertBarberScheduleConfig(effectiveUid, linkedBarberId, {
+    const result = await upsertBarberScheduleConfig(effectiveUid, targetBarberId, {
       openingTime: barberSchedule.openingTime,
       closingTime: barberSchedule.closingTime,
       appointmentDuration: barberSchedule.appointmentDuration,
@@ -470,7 +498,7 @@ const Settings = () => {
     });
 
     if (result.success) {
-      toast.success('Tu horario fue actualizado');
+      toast.success('Horario actualizado correctamente');
     } else {
       toast.error(result.error || 'No se pudo guardar tu horario');
     }
@@ -1060,12 +1088,11 @@ const Settings = () => {
             </div>
           </div>
 
-          {/* Horario personal del barbero */}
-          {!isAdmin && (
+          {/* Horario personal del barbero / profesional */}
           <div className="card">
             <h3 className="text-xl font-semibold text-primary mb-6 flex items-center gap-2">
               <Clock className="w-5 h-5" />
-              Mi Horario de Atención
+              {isAdmin ? 'Mi Horario de Atención Personal' : 'Mi Horario de Atención'}
             </h3>
 
             <div className="space-y-6">
@@ -1168,10 +1195,8 @@ const Settings = () => {
                   {savingBarberSchedule ? <LoadingSpinner size="small" /> : <Save className="w-5 h-5" />}
                   Guardar Mi Horario
                 </button>
-              </div>
             </div>
           </div>
-          )}
           </>
 
           {isAdmin && (
