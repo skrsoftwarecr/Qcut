@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import BookingPage from './pages/BookingPage';
+import ConfirmReschedulePage from './pages/ConfirmReschedulePage';
 
 function App() {
   return (
@@ -17,6 +18,9 @@ function App() {
         <Routes>
           {/* Ruta pública de reservas - completamente aislada */}
           <Route path="/book/:businessId" element={<BookingPage />} />
+          
+          {/* Ruta pública: el cliente responde al cambio de horario */}
+          <Route path="/confirmar-cita" element={<ConfirmReschedulePage />} />
           
           {/* Rutas de autenticación */}
           <Route path="/login" element={<Login />} />
